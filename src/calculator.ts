@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Settings, type ShiftName, shiftOf, shiftWindows } from "./settings";
+import { DEFAULT_SETTINGS, resolveShifts, type Settings, type ShiftName, shiftWindows } from "./settings";
 import type { DayType, Minutes, Overrides, RawDay } from "./types";
 
 export { DEFAULT_SETTINGS } from "./settings";
@@ -97,11 +97,10 @@ function findPunchProblem(day: RawDay, settings: Settings): PunchProblem | undef
   return undefined;
 }
 
-function evaluateDay(pageDay: RawDay, today: string, settings: Settings, overrides: Overrides): DayResult {
+function evaluateDay(pageDay: RawDay, shiftName: ShiftName, today: string, settings: Settings, overrides: Overrides): DayResult {
   // Today is not over (the sign-out may be missing), so it is excluded unless the user chose a type.
   const todayDefault = pageDay.date === today && !(pageDay.date in overrides);
   const day = { ...pageDay, dayType: todayDefault ? "excluded" : (overrides[pageDay.date] ?? pageDay.dayType) };
-  const shiftName = shiftOf(pageDay, settings);
   const shift = settings[shiftName];
   const windows = shiftWindows(shift);
   const result: DayResult = {
@@ -195,7 +194,8 @@ export function calculate(
   overrides: Overrides = {},
   settings: Settings = DEFAULT_SETTINGS,
 ): Summary {
-  const results = days.map((d) => evaluateDay(d, today, settings, overrides));
+  const shifts = resolveShifts(days, settings);
+  const results = days.map((d, i) => evaluateDay(d, shifts[i], today, settings, overrides));
   const counted = results.filter((r) => r.status === "ok");
   const sum = (key: "lateness" | "shortness" | "outside" | "extra") =>
     counted.reduce((acc, r) => acc + r[key], 0);

@@ -1,4 +1,4 @@
-import type { Minutes, RawDay } from "./types";
+import type { DayType, Minutes, RawDay } from "./types";
 
 const h = (hours: number, minutes = 0): Minutes => hours * 60 + minutes;
 
@@ -18,9 +18,12 @@ export interface Settings {
   monthlyAllowance: number;
   regular: Shift;
   ramadan: Shift;
-  /** A day is on the Ramadan shift when the page's "Shift Type" contains one of these. */
-  ramadanNames: string[];
-  /** ...or when it falls between these ISO dates (inclusive); empty to rely on the shift name only. */
+  /**
+   * The page's "Shift Type" names that mean the regular shift (either language).
+   * Any other shift name means the Ramadan shift.
+   */
+  regularNames: string[];
+  /** Days between these ISO dates (inclusive) are Ramadan whatever the shift name; empty to rely on the name only. */
   ramadanFrom: string;
   ramadanTo: string;
   /** Sign-in and sign-out closer together than this look like one punch recorded twice. */
@@ -31,7 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   monthlyAllowance: h(8),
   regular: { entryFrom: h(7), entryTo: h(9), hours: h(8), makeupUntil: h(18) },
   ramadan: { entryFrom: h(10), entryTo: h(12), hours: h(5), makeupUntil: h(18) },
-  ramadanNames: ["Ramadan", "رمضان"],
+  regularNames: ["Regular", "منتظم"],
   ramadanFrom: "",
   ramadanTo: "",
   singlePunchWithin: 5,
@@ -39,15 +42,50 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export type ShiftName = "regular" | "ramadan";
 
-const normalize = (text: string) => text.replace(/\s+/g, " ").trim().toLowerCase();
+/** Compares shift names across spelling variants: case, spaces, Arabic alef forms, tatweel and diacritics. */
+function normalizeName(text: string): string {
+  return text
+    .replace(/[\u064B-\u0652\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
 
-/** Which shift a day is on: Ramadan by the page's shift name, or by the Ramadan dates. */
-export function shiftOf(day: RawDay, settings: Settings): ShiftName {
-  const name = normalize(day.shiftName ?? "");
-  if (name && settings.ramadanNames.some((n) => n.trim() && name.includes(normalize(n)))) return "ramadan";
+/** Day types whose shift name decides the shift. Weekends, vacations etc. never do. */
+const WORKING_TYPES: DayType[] = ["regular", "halfDayLeave", "unknown"];
+
+/**
+ * The shift a day's own row shows, or undefined when it does not show one: an empty Shift Type
+ * (half days) or a day that is not a working day (weekend, vacation, holiday, WFH, training).
+ */
+function shiftFromRow(day: RawDay, settings: Settings): ShiftName | undefined {
   const { ramadanFrom: from, ramadanTo: to } = settings;
   if (from && to && day.date >= from && day.date <= to) return "ramadan";
-  return "regular";
+  if (!WORKING_TYPES.includes(day.dayType)) return undefined;
+  const name = normalizeName(day.shiftName ?? "");
+  if (!name) return undefined;
+  return settings.regularNames.some((n) => normalizeName(n) === name) ? "regular" : "ramadan";
+}
+
+/**
+ * Which shift each day is on. A "Regular" / "منتظم" shift name is the regular shift; any other name
+ * (whatever HR calls it in Ramadan) is the Ramadan shift; days inside the Ramadan dates are Ramadan.
+ * Only working days are judged by their name; the rest (half days without a name, weekends, leave)
+ * take the shift of the nearest working day.
+ */
+export function resolveShifts(days: RawDay[], settings: Settings): ShiftName[] {
+  const own = days.map((d) => shiftFromRow(d, settings));
+  return own.map((shift, i) => {
+    if (shift) return shift;
+    for (let distance = 1; distance < days.length; distance++) {
+      const nearest = own[i - distance] ?? own[i + distance];
+      if (nearest) return nearest;
+    }
+    return "regular";
+  });
 }
 
 /**
@@ -72,12 +110,14 @@ export function shiftWindows(shift: Shift) {
 
 /** Fills in anything missing from stored settings (e.g. after an update adds a new setting). */
 export function withDefaults(stored: Partial<Settings> | undefined): Settings {
-  return {
-    ...DEFAULT_SETTINGS,
-    ...stored,
-    regular: { ...DEFAULT_SETTINGS.regular, ...stored?.regular },
-    ramadan: { ...DEFAULT_SETTINGS.ramadan, ...stored?.ramadan },
-  };
+  const settings: Settings = { ...DEFAULT_SETTINGS };
+  // Copy only settings that still exist (1.0.5 stored a "ramadanNames" list that is no longer used).
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+    if (stored?.[key] !== undefined) (settings as any)[key] = stored[key];
+  }
+  settings.regular = { ...DEFAULT_SETTINGS.regular, ...stored?.regular };
+  settings.ramadan = { ...DEFAULT_SETTINGS.ramadan, ...stored?.ramadan };
+  return settings;
 }
 
 export async function loadSettings(): Promise<Settings> {

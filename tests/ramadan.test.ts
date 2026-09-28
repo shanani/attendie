@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { calculate } from "../src/calculator";
-import { DEFAULT_SETTINGS, shiftOf, shiftWindows, withDefaults, type Settings } from "../src/settings";
-import { parseClock } from "../src/parser";
+import { readFileSync } from "node:fs";
+import { JSDOM } from "jsdom";
+import { DEFAULT_SETTINGS, resolveShifts, shiftWindows, withDefaults, type Settings } from "../src/settings";
+import { parseAttendancePage, parseClock } from "../src/parser";
 import type { RawDay } from "../src/types";
 
 const t = (text: string) => parseClock(text)!;
@@ -39,16 +41,74 @@ describe("shift windows", () => {
 });
 
 describe("which shift a day is on", () => {
-  it("follows the page's shift name, in either language", () => {
-    expect(shiftOf(day("2026-03-01", "10:00", "15:00"), DEFAULT_SETTINGS)).toBe("ramadan");
-    expect(shiftOf(day("2026-03-01", "10:00", "15:00", { shiftName: "دوام رمضان" }), DEFAULT_SETTINGS)).toBe("ramadan");
-    expect(shiftOf(day("2026-03-01", "10:00", "15:00", { shiftName: "Regular" }), DEFAULT_SETTINGS)).toBe("regular");
+  const shifts = (days: RawDay[], settings: Settings = DEFAULT_SETTINGS) => resolveShifts(days, settings);
+
+  it("is regular for Regular / منتظم, and Ramadan for any other shift name", () => {
+    expect(
+      shifts([
+        day("2026-03-01", "10:00", "15:00", { shiftName: "Regular" }),
+        day("2026-03-02", "10:00", "15:00", { shiftName: "منتظم" }),
+        day("2026-03-03", "10:00", "15:00", { shiftName: "Ramadan" }),
+        day("2026-03-04", "10:00", "15:00", { shiftName: "دوام رمضان" }),
+        day("2026-03-05", "10:00", "15:00", { shiftName: "Special Shift" }),
+        day("2026-03-06", "10:00", "15:00", { shiftName: "  REGULAR " }),
+        day("2026-03-07", "10:00", "15:00", { shiftName: "مُنتظم" }), // with a diacritic
+      ]),
+    ).toEqual(["regular", "regular", "ramadan", "ramadan", "ramadan", "regular", "regular"]);
   });
 
-  it("falls back to the Ramadan dates when set", () => {
+  it("uses the regular names set in the settings", () => {
+    const settings = withDefaults({ regularNames: ["Normal", "عادي"] });
+    expect(shifts([day("2026-03-01", "8:00", "16:00", { shiftName: "Normal" }), day("2026-03-02", "8:00", "16:00", { shiftName: "Regular" })], settings)).toEqual([
+      "regular",
+      "ramadan",
+    ]);
+  });
+
+  it("ignores the shift name of weekends, vacations and other non-working days", () => {
+    const off = (date: string, dayType: RawDay["dayType"]) =>
+      day(date, "10:00", "15:00", { dayType, shiftName: "Ramadan", clockIn: null, clockOut: null });
+    // Regular working days around them decide their shift.
+    expect(
+      shifts([
+        day("2026-03-01", "8:00", "16:00", { shiftName: "Regular" }),
+        off("2026-03-02", "weekend"),
+        off("2026-03-03", "annualVacation"),
+        off("2026-03-04", "wfh"),
+        day("2026-03-05", "8:00", "16:00", { shiftName: "Regular" }),
+      ]),
+    ).toEqual(["regular", "regular", "regular", "regular", "regular"]);
+  });
+
+  it("gives half days without a shift name the nearest working day's shift", () => {
+    const half = (date: string) => day(date, "13:00", "15:30", { dayType: "halfDayLeave", shiftName: "" });
+    expect(
+      shifts([
+        day("2026-03-01", "10:00", "15:00", { shiftName: "Ramadan" }),
+        day("2026-03-02", "", "", { dayType: "weekend", shiftName: "", clockIn: null, clockOut: null }),
+        half("2026-03-03"),
+        day("2026-03-04", "10:00", "15:00", { shiftName: "Ramadan" }),
+      ]),
+    ).toEqual(["ramadan", "ramadan", "ramadan", "ramadan"]);
+    expect(shifts([half("2026-03-01"), day("2026-03-02", "8:00", "16:00", { shiftName: "Regular" })])).toEqual(["regular", "regular"]);
+  });
+
+  it("makes every day inside the Ramadan dates Ramadan, whatever its name", () => {
     const settings = { ...DEFAULT_SETTINGS, ramadanFrom: "2026-02-18", ramadanTo: "2026-03-19" };
-    expect(shiftOf(day("2026-03-01", "10:00", "15:00", { shiftName: "Regular" }), settings)).toBe("ramadan");
-    expect(shiftOf(day("2026-03-20", "10:00", "15:00", { shiftName: "Regular" }), settings)).toBe("regular");
+    expect(
+      shifts([day("2026-03-01", "10:00", "15:00", { shiftName: "Regular" }), day("2026-03-20", "8:00", "16:00", { shiftName: "Regular" })], settings),
+    ).toEqual(["ramadan", "regular"]);
+  });
+
+  it("keeps the September sample regular (Regular / منتظم)", () => {
+    for (const lang of ["en", "ar"]) {
+      const { days } = parseAttendancePage(new JSDOM(readFileSync(`tests/fixtures/attendance-${lang}.html`, "utf8")).window.document);
+      expect(new Set(resolveShifts(days, DEFAULT_SETTINGS))).toEqual(new Set(["regular"]));
+    }
+  });
+
+  it("drops the old ramadanNames setting", () => {
+    expect(withDefaults({ ramadanNames: ["Ramadan"] } as never)).toEqual(DEFAULT_SETTINGS);
   });
 });
 
@@ -96,5 +156,20 @@ describe("Ramadan days", () => {
       ["ramadan", "ok", 0],
       ["regular", "ok", 0],
     ]);
+  });
+});
+
+describe("reading Ramadan rows from the page", () => {
+  it("treats a day with a non-regular shift name and no punches as an absent working day", () => {
+    const doc = new JSDOM(readFileSync("tests/fixtures/attendance-ar.html", "utf8")).window.document;
+    const row = Array.from(doc.querySelectorAll("tr")).find((tr) => tr.querySelector(":scope > td.cdk-column-Day")?.textContent?.includes("10 سبتمبر"))!;
+    row.querySelector("td.cdk-column-shiftType")!.textContent = " رمضان ";
+    for (const col of ["ClockIn", "ClockOut", "netAttendanceHours"]) row.querySelector(`td.cdk-column-${col}`)!.textContent = "";
+
+    const days = parseAttendancePage(doc).days;
+    const tenth = days.find((d) => d.date === "2026-09-10")!;
+    expect(tenth).toMatchObject({ dayType: "regular", shiftName: "رمضان", clockIn: null, clockOut: null });
+    const result = calculate(days, "2026-09-28").days.find((d) => d.day.date === "2026-09-10")!;
+    expect(result).toMatchObject({ shift: "ramadan", status: "absent", absentReason: "noSignInOut" });
   });
 });

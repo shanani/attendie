@@ -115,7 +115,7 @@ function ruleLines(lang: Lang, settings: Settings): string[] {
     fill(allowance, { allowance: hm(settings.monthlyAllowance) }),
     shiftLine("regular"),
     shiftLine("ramadan"),
-    fill(ramadanDays, { names: settings.ramadanNames.map((n) => `"${n}"`).join(", "), dates }),
+    fill(ramadanDays, { names: settings.regularNames.map((n) => `"${n}"`).join(", "), dates }),
     ...rest,
   ];
 }

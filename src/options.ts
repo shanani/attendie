@@ -15,8 +15,8 @@ const TEXT = {
     makeupUntil: "Make-up counts until",
     derived: "Exit {0} · half day {1} · absent under {2} (half the hours)",
     ramadanDays: "Which days are Ramadan",
-    names: "Shift names on the page that mean Ramadan (comma-separated)",
-    namesHelp: "Matched against the page's \"Shift Type\" column, e.g. Ramadan, رمضان.",
+    names: "Shift names on the page that mean the regular shift (comma-separated)",
+    namesHelp: "Any other name in the page's \"Shift Type\" column counts as Ramadan. Days without a shift name (half days, leave) take the nearest day's shift.",
     from: "Ramadan from (optional)",
     to: "Ramadan to (optional)",
     datesHelp: "If HR still shows \"Regular\" during Ramadan, set the dates and those days use the Ramadan shift.",
@@ -42,8 +42,8 @@ const TEXT = {
     makeupUntil: "يُحتسب التعويض حتى",
     derived: "الخروج {0} · نصف اليوم {1} · غياب إذا أقل من {2} (نصف الساعات)",
     ramadanDays: "أيام رمضان",
-    names: "أسماء الدوام في الصفحة التي تعني رمضان (مفصولة بفواصل)",
-    namesHelp: "تُقارن مع عمود \"نوع الدوام\" في الصفحة، مثل Ramadan، رمضان.",
+    names: "أسماء الدوام في الصفحة التي تعني الدوام العادي (مفصولة بفواصل)",
+    namesHelp: "أي اسم آخر في عمود \"نوع الدوام\" يُحتسب دوام رمضان. الأيام بدون اسم دوام (نصف يوم، إجازة) تأخذ دوام أقرب يوم.",
     from: "رمضان من (اختياري)",
     to: "رمضان إلى (اختياري)",
     datesHelp: "إذا بقيت الصفحة تعرض \"منتظم\" في رمضان، حدّد التواريخ لتُحتسب تلك الأيام بدوام رمضان.",
@@ -136,7 +136,7 @@ function render(settings: Settings) {
   const allowance = el("input", { type: "number", min: "0", max: "100", step: "0.25", value: String(settings.monthlyAllowance / 60) });
   const regular = shiftSection("regular", settings.regular);
   const ramadan = shiftSection("ramadan", settings.ramadan);
-  const names = el("input", { type: "text", value: settings.ramadanNames.join(", ") });
+  const names = el("input", { type: "text", value: settings.regularNames.join(", ") });
   const from = el("input", { type: "date", value: settings.ramadanFrom });
   const to = el("input", { type: "date", value: settings.ramadanTo });
   const status = el("p", { className: "status", role: "status" });
@@ -179,7 +179,7 @@ function render(settings: Settings) {
       monthlyAllowance: Math.round(Number(allowance.value) * 60),
       regular: regular.read(),
       ramadan: ramadan.read(),
-      ramadanNames: names.value.split(/[,،]/).map((n) => n.trim()).filter(Boolean),
+      regularNames: names.value.split(/[,،]/).map((n) => n.trim()).filter(Boolean),
       ramadanFrom: from.value,
       ramadanTo: to.value,
     };

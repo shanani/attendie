@@ -47,7 +47,7 @@ Click ⚙ in the popup (or right-click the icon → Options) to set:
 
 - **Monthly allowance** (default 8 hours).
 - **Regular shift** and **Ramadan shift**: earliest entry, latest entry, working hours, and until when make-up counts. Defaults: regular 7:00–9:00 entry, 8 hours, make-up until 18:00; Ramadan 10:00–12:00 entry, 5 hours (exit 15:00–17:00), make-up until 18:00.
-- **Which days are Ramadan**: a day uses the Ramadan shift when the page's "Shift Type" contains one of the names you list (default `Ramadan, رمضان`), or when it falls between the optional Ramadan dates.
+- **Which days are Ramadan**: on a working day (normal or half day), a "Shift Type" of `Regular` / `منتظم` means the regular shift and **any other name** means Ramadan (the regular names are editable; matching ignores case, spaces and Arabic spelling variants). Weekends, vacations, holidays, WFH and training are not judged by their shift name. Days without a shift name (half days) take the nearest working day's shift. Optional Ramadan dates make every day between them Ramadan.
 
 Half days and the absent threshold follow the day's shift: a half day is half the hours, and a full day under half the hours is absent (4:00 regular, 2:30 Ramadan).
 

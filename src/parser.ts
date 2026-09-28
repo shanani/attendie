@@ -156,7 +156,9 @@ export function parseAttendancePage(root: ParentNode): ParseResult {
 
     days.push({
       date,
-      dayType: detectDayType(rowText, clockIn !== null),
+      // A day with a shift name (Regular, or whatever HR calls the Ramadan shift) is a working day,
+      // even with no punches (then it is absent).
+      dayType: detectDayType(rowText, clockIn !== null || textOf(cell("shiftType")) !== ""),
       clockIn,
       clockOut,
       reported: readReportedMinutes(row),
