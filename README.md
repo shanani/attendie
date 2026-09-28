@@ -4,16 +4,23 @@ Chrome extension that reads your HR **Attendance Report** page (Arabic or Englis
 
 ## Install
 
+1. Download **[attendie-extension.zip](https://github.com/shanani/attendie/releases/latest/download/attendie-extension.zip)** (the latest release) and unzip it into a folder you keep.
+2. Open `chrome://extensions` and turn on **Developer mode**.
+3. Click **Load unpacked** and choose the unzipped folder (the one with `manifest.json`).
+4. Open your HR Attendance Report page, pick the month, click the extension icon, then press **Generate summary**.
+
+To update, replace the folder's contents with the new zip and press the reload icon on the extension card.
+
+Every push to `main` builds, tests and publishes a new release (`.github/workflows/release.yml`).
+
+### Build it yourself
+
 ```bash
 npm install
 npm run build
 ```
 
-1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and choose the `dist` folder.
-3. Open your HR Attendance Report page, pick the month, click the extension icon, then press **Generate summary**.
-
-After changing code, run `npm run build` again and press the reload icon on the extension card.
+Then load the `dist` folder as above.
 
 ## What the popup shows
 
