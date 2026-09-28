@@ -10,7 +10,12 @@ export type DayType =
   | "wfh"
   | "annualVacation"
   | "training"
+  /** Half-day leave as the page shows it; morning or evening is detected from the times. */
   | "halfDayLeave"
+  /** Leave in the morning, work in the afternoon (chosen by the user). */
+  | "halfDayMorning"
+  /** Leave in the evening, work in the morning (chosen by the user). */
+  | "halfDayEvening"
   /** Set by the user to leave a day out of the calculation (e.g. sick leave). */
   | "excluded"
   | "unknown";

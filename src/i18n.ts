@@ -33,7 +33,9 @@ const en = {
   resetOverrides: "Reset my changes for this month",
   dayTypes: {
     regular: "Regular",
-    halfDayLeave: "Half day leave",
+    halfDayLeave: "Half day (auto)",
+    halfDayMorning: "Half day – morning leave",
+    halfDayEvening: "Half day – evening leave",
     annualVacation: "Annual vacation",
     wfh: "Work from home",
     training: "Training",
@@ -49,7 +51,11 @@ const en = {
     excluded: "Excluded",
     notCounted: "Not counted",
   } satisfies Record<DayStatus, string>,
-  halfDay: "Half day",
+  halfDayPart: {
+    morningLeave: "morning leave, counts 11:00–18:00",
+    eveningLeave: "evening leave, counts 7:00–13:00",
+    unknown: "morning or evening? choose in Type",
+  },
   fromPage: "HR figures, no times on page",
 };
 
@@ -85,7 +91,9 @@ const ar: typeof en = {
   resetOverrides: "إلغاء تعديلاتي لهذا الشهر",
   dayTypes: {
     regular: "منتظم",
-    halfDayLeave: "إجازة نصف يوم",
+    halfDayLeave: "نصف يوم (تلقائي)",
+    halfDayMorning: "نصف يوم – إجازة صباحية",
+    halfDayEvening: "نصف يوم – إجازة مسائية",
     annualVacation: "إجازة سنوية",
     wfh: "العمل من المنزل",
     training: "تدريب",
@@ -101,7 +109,11 @@ const ar: typeof en = {
     excluded: "مستثنى",
     notCounted: "لم يُحتسب",
   },
-  halfDay: "نصف يوم",
+  halfDayPart: {
+    morningLeave: "إجازة صباحية، يُحتسب 11:00–18:00",
+    eveningLeave: "إجازة مسائية، يُحتسب 7:00–13:00",
+    unknown: "صباحية أم مسائية؟ اختر من النوع",
+  },
   fromPage: "أرقام الموارد البشرية، لا توجد أوقات",
 };
 

@@ -96,6 +96,30 @@ function readReportedMinutes(dayRow: Element): ReportedMinutes | null {
   return reported;
 }
 
+/**
+ * First sign-in and last sign-out from the "Time in | Time out" punch list in the detail row.
+ * Used when the main row has no times (e.g. half-day leave days).
+ */
+function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOut: Minutes | null } {
+  const ins: Minutes[] = [];
+  const outs: Minutes[] = [];
+  const detailRow = dayRow.nextElementSibling;
+  if (detailRow?.querySelector("td.cdk-column-expandedDetail")) {
+    for (const tr of Array.from(detailRow.querySelectorAll("table.detail-table tr"))) {
+      const cells = tr.querySelectorAll("td");
+      if (cells.length !== 2) continue;
+      const clockIn = parseClock(textOf(cells[0]));
+      const clockOut = parseClock(textOf(cells[1]));
+      if (clockIn !== null) ins.push(clockIn);
+      if (clockOut !== null) outs.push(clockOut);
+    }
+  }
+  return {
+    clockIn: ins.length ? Math.min(...ins) : null,
+    clockOut: outs.length ? Math.max(...outs) : null,
+  };
+}
+
 /** Reads the attendance table from the HR "Attendance Report" page. */
 export function parseAttendancePage(root: ParentNode): ParseResult {
   const rows = Array.from(root.querySelectorAll("tr")).filter((tr) =>
@@ -111,8 +135,9 @@ export function parseAttendancePage(root: ParentNode): ParseResult {
     if (!date) continue;
     if (/[؀-ۿ]/.test(dateText)) arabicDates++;
 
-    const clockIn = parseClock(textOf(cell("ClockIn")));
-    const clockOut = parseClock(textOf(cell("ClockOut")));
+    let clockIn = parseClock(textOf(cell("ClockIn")));
+    let clockOut = parseClock(textOf(cell("ClockOut")));
+    if (clockIn === null && clockOut === null) ({ clockIn, clockOut } = readPunches(row));
     const rowText = Array.from(row.querySelectorAll(":scope > td"))
       .map((td) => td.textContent ?? "")
       .join(" ");

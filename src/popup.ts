@@ -8,6 +8,8 @@ const app = document.getElementById("app")!;
 const SELECTABLE_TYPES: DayType[] = [
   "regular",
   "halfDayLeave",
+  "halfDayMorning",
+  "halfDayEvening",
   "annualVacation",
   "wfh",
   "training",
@@ -150,7 +152,7 @@ function daysTable(summary: Summary, lang: Lang) {
           dash(d.outside),
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
-        const note = d.fromPage ? t.fromPage : d.halfDay ? t.halfDay : "";
+        const note = [d.halfDay && t.halfDayPart[d.halfDay], d.fromPage && t.fromPage].filter(Boolean).join(" · ");
         const status = t.status[d.status] + (note ? ` (${note})` : "");
         return el(
           "tr",
