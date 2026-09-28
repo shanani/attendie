@@ -28,6 +28,7 @@ Then load the `dist` folder as above.
 - **Total make-up time**: extra minutes earned (after the 8h day, up to 6 PM).
 - **Total lateness**: minutes arriving after 9:00.
 - **Lateness + shortness/outside**: all missing time before any make-up is applied.
+- **Needs justification**: lateness above 8 hours + shortness/outside not covered by make-up. Green when both are 0; otherwise red with the total and the two parts.
 - **Absent days** in red: the total and each date with its reason.
 - **Days to check with the security gate report** in orange: a sign-in without a sign-out (or the reverse), one punch (in and out a few minutes apart), or an unpaired punch in the day's punch list.
 - **Today** is excluded by default because it is not over yet; to count it, change its type in the day table. Later days are not counted.

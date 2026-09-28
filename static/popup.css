@@ -57,6 +57,11 @@ button.link { width: auto; border: none; background: none; color: var(--accent);
 .stat .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .stat.hero .value strong { color: var(--accent); }
 .stat.hero.over .value strong { color: var(--danger); }
+.justify { border-top: none; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.justify .row strong { font-size: 20px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.justify.ok { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border: 1px solid var(--accent); }
+.justify.due { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); border: 1px solid var(--danger); }
+.justify .small { color: var(--fg); opacity: 0.8; }
 .usage { border-top: none; padding-top: 0; }
 .bar { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; margin: 2px 0 4px; }
 .fill { height: 100%; background: var(--accent); }

@@ -114,6 +114,8 @@ export interface Summary {
   remaining: number;
   /** Number of absent days (not counted in the totals). */
   absentDays: number;
+  /** Minutes that need a justification: lateness above the allowance, plus shortness/outside not made up. */
+  justification: { total: number; latenessOver: number; notMadeUp: number };
   /** Number of days whose sign-in/out should be checked with the security gate report. */
   problemDays: number;
 }
@@ -226,6 +228,8 @@ export function calculate(
   const coverable = totals.shortness + totals.outside;
   const extraUsed = Math.min(totals.extra, coverable);
   const charged = totals.lateness + (coverable - extraUsed);
+  const latenessOver = Math.max(0, totals.lateness - rules.monthlyAllowance);
+  const notMadeUp = coverable - extraUsed;
 
   return {
     month: days[0]?.date.slice(0, 7) ?? "",
@@ -236,6 +240,7 @@ export function calculate(
     charged,
     remaining: rules.monthlyAllowance - charged,
     absentDays: results.filter((r) => r.status === "absent").length,
+    justification: { total: latenessOver + notMadeUp, latenessOver, notMadeUp },
     problemDays: results.filter((r) => r.punchProblem).length,
   };
 }

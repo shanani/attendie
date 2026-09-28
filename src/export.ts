@@ -107,14 +107,18 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
     [t.statLateShort, "B3+B7", totals.lateness + totals.shortness + totals.outside, x.howLateShort],
     [t.absentDays, `COUNTIF(${range("status")},"${t.status.absent}")`, summary.absentDays, x.howAbsent],
     [x.sumGateDays, `SUMPRODUCT(--(LEN(${range("gateCheck")})>0))`, summary.problemDays, x.howGate],
+    [x.sumLatenessOver, "MAX(0,B3-B2)", summary.justification.latenessOver, x.howLatenessOver],
+    [x.sumNotMadeUp, "B7-B8", summary.justification.notMadeUp, x.howNotMadeUp],
+    [t.justifyTitle, "B14+B15", summary.justification.total, x.howJustify],
   ];
 
   const rows: Cell[][] = [
     x.summaryHeaders.map((h) => ({ value: h, style: header })),
     ...lines.map(([label, formula, value, how], i): Cell[] => {
       const r = i + 2;
-      const strong = label === t.statRemaining;
-      const style: Style = { numFmt: "int", bold: strong, fill: strong ? (value < 0 ? "red" : "green") : undefined };
+      const strong = label === t.statRemaining || label === t.justifyTitle;
+      const bad = label === t.justifyTitle ? value > 0 : value < 0;
+      const style: Style = { numFmt: "int", bold: strong, fill: strong ? (bad ? "red" : "green") : undefined };
       return [
         { value: label, style: { bold: strong } },
         formula === null ? { value, style } : { value, formula, style },

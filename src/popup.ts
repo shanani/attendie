@@ -125,6 +125,31 @@ function absentBlock(days: DayResult[], lang: Lang) {
   );
 }
 
+/** Green when nothing needs justifying; otherwise the minutes to justify and where they come from. */
+function justifyTile(summary: Summary, lang: Lang) {
+  const t = STRINGS[lang];
+  const { total, latenessOver, notMadeUp } = summary.justification;
+  if (total === 0) {
+    return el(
+      "section",
+      { className: "justify ok" },
+      el("div", { className: "row" }, el("span", { textContent: `✓ ${t.justifyTitle}` }), el("strong", { textContent: `0 ${t.min}` })),
+      el("div", { className: "small", textContent: t.justifyNone }),
+    );
+  }
+  return el(
+    "section",
+    { className: "justify due" },
+    el(
+      "div",
+      { className: "row" },
+      el("span", { textContent: `⚠ ${t.justifyTitle}` }),
+      el("strong", { textContent: `${total} ${t.min} · ${hm(total)}` }),
+    ),
+    el("div", { className: "small", textContent: t.justifyParts.replace("{0}", String(latenessOver)).replace("{1}", String(notMadeUp)) }),
+  );
+}
+
 /** Orange list of days whose sign-in/out should be checked with the security gate report. */
 function gateBlock(days: DayResult[], lang: Lang) {
   const t = STRINGS[lang];
@@ -303,6 +328,7 @@ function renderSummary(summary: Summary, lang: Lang) {
   app.replaceChildren(
     el("h1", { textContent: `${t.title} · ${formatMonth(summary.month, lang)}` }),
     stats,
+    justifyTile(summary, lang),
     usage,
     lists,
     el("section", {}, breakdown),
