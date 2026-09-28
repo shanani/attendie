@@ -100,7 +100,7 @@ function readReportedMinutes(dayRow: Element): ReportedMinutes | null {
  * First sign-in and last sign-out from the "Time in | Time out" punch list in the detail row.
  * Used when the main row has no times (e.g. half-day leave days).
  */
-function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOut: Minutes | null } {
+export function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOut: Minutes | null } {
   const ins: Minutes[] = [];
   const outs: Minutes[] = [];
   const detailRow = dayRow.nextElementSibling;
@@ -120,11 +120,19 @@ function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOut: Minu
   };
 }
 
+/** The main row of every day in the attendance table. */
+export function dayRows(root: ParentNode): HTMLTableRowElement[] {
+  return Array.from(root.querySelectorAll("tr")).filter((tr) => tr.querySelector(":scope > td.cdk-column-Day"));
+}
+
+/** ISO date of a day row, e.g. "2026-08-20". */
+export function dayRowDate(row: Element): string | null {
+  return parseDate(textOf(row.querySelector(":scope > td.cdk-column-Day")));
+}
+
 /** Reads the attendance table from the HR "Attendance Report" page. */
 export function parseAttendancePage(root: ParentNode): ParseResult {
-  const rows = Array.from(root.querySelectorAll("tr")).filter((tr) =>
-    tr.querySelector(":scope > td.cdk-column-Day"),
-  );
+  const rows = dayRows(root);
 
   const days: RawDay[] = [];
   let arabicDates = 0;

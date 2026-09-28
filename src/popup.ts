@@ -282,9 +282,11 @@ async function generate(fallbackLang: Lang) {
     if (!tab?.id) throw new Error("no tab");
     // Search every frame: the report may live inside an iframe.
     await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] });
+    app.append(el("p", { className: "muted", textContent: STRINGS[fallbackLang].reading }));
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
-      func: () => (globalThis as any).__attendieRead(),
+      func: (today: string) => (globalThis as any).__attendieRead(today),
+      args: [localToday()],
     });
     const found = results
       .map((r) => r.result as ParseResult | undefined)
