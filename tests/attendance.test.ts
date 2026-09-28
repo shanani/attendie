@@ -13,7 +13,8 @@ const regular = (date: string, clockIn: string, clockOut: string, extra: Partial
   dayType: "regular",
   clockIn: parseClock(clockIn),
   clockOut: parseClock(clockOut),
-  reported: { lateness: 0, shortness: 0, outside: 0 },
+  // No HR detail table, so the calculator works lateness and shortness out from the times.
+  reported: null,
   netMinutes: null,
   ...extra,
 });
@@ -71,10 +72,11 @@ describe("calculator", () => {
     expect(status("2026-09-28")).toBe("notCounted");
     expect(status("2026-09-07")).toBe("excluded");
 
-    expect(s.totals).toEqual({ lateness: 385, shortness: 197, outside: 397, extra: 494 });
+    // Lateness and shortness are HR's own per-day minutes (the page lists 3 Sep shortness as 31, not 32).
+    expect(s.totals).toEqual({ lateness: 385, shortness: 194, outside: 397, extra: 494 });
     expect(s.extraUsed).toBe(494);
-    expect(s.charged).toBe(485);
-    expect(s.remaining).toBe(-5);
+    expect(s.charged).toBe(482);
+    expect(s.remaining).toBe(-2);
   });
 
   it("does not let extra minutes cover lateness", () => {
@@ -207,12 +209,41 @@ describe("punch list fallback", () => {
     expect(day).toMatchObject({ dayType: "halfDayLeave", clockIn: 11 * 60 + 11, clockOut: 15 * 60 + 40 });
 
     const result = calculate([day], "2026-09-28").days[0];
-    expect(result).toMatchObject({ status: "ok", halfDay: "morningLeave", lateness: 0, shortness: 0, extra: 29 });
+    // Lateness is HR's own figure for the day (11), which the page lists alongside the punches.
+    expect(result).toMatchObject({ status: "ok", halfDay: "morningLeave", lateness: 11, shortness: 0, extra: 29 });
   });
 
   it("does not read the weekend punches of the Arabic sample as a working day", () => {
     const day = load("attendance-ar.html").days.find((d) => d.date === "2026-09-04")!;
     expect(day).toMatchObject({ dayType: "weekend", clockIn: 15 * 60 + 15, clockOut: 15 * 60 + 34 });
     expect(calculate([day], "2026-09-28").days[0].status).toBe("excluded");
+  });
+});
+
+describe("HR's own per-day minutes", () => {
+  it("match the page's August totals exactly", () => {
+    const { days } = load("attendance-en-halfday.html");
+    // Give the half days the times the page shows once their rows are opened.
+    const times: Record<string, [number, number]> = {
+      "2026-08-18": [12 * 60 + 41, 18 * 60],
+      "2026-08-20": [13 * 60 + 11, 18 * 60],
+      "2026-08-26": [13 * 60 + 7, 17 * 60 + 33],
+    };
+    for (const d of days) if (times[d.date]) [d.clockIn, d.clockOut] = times[d.date];
+
+    const s = calculate(days, "2026-09-28");
+    const day = (d: string) => s.days.find((x) => x.day.date === d)!;
+    // The page's summary: lateness 442, out of STC 792, shortness 92, 0 absent days.
+    expect(s.totals).toMatchObject({ lateness: 442, outside: 792, shortness: 92 });
+    expect(s.absentDays).toBe(0);
+    expect(day("2026-08-23").lateness).toBe(0); // 9:04, inside HR's grace period
+    expect(day("2026-08-06").shortness).toBe(34); // HR counts seconds; the times alone give 35
+  });
+
+  it("are not used for a day whose type the user changed", () => {
+    const { days } = load("attendance-en.html");
+    // 10 Sep: HR lists shortness 227 for a full day; as an evening-leave half day it is 0.
+    const s = calculate(days, "2026-09-28", { "2026-09-10": "halfDayEvening" });
+    expect(s.days.find((d) => d.day.date === "2026-09-10")).toMatchObject({ status: "ok", lateness: 17, shortness: 0 });
   });
 });

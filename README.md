@@ -41,6 +41,7 @@ All rules live in `src/calculator.ts` (`DEFAULT_RULES`).
 - Flexible entry 7:00–9:00; required 8h. Arriving after 9:00 is **lateness** and you still have to stay until 17:00.
 - Time before 7:00 and after 18:00 does not count.
 - Leaving before entry + 8h is **shortness**; "Out of STC" minutes are **outside** time.
+- Lateness and shortness use HR's own per-day minutes from the day's detail whenever the page lists them (HR counts seconds and has a short grace period, so its numbers are exact); they are calculated from the times only when HR lists none, or when you changed the day's type.
 - Time after entry + 8h (up to 18:00) is **extra** (make-up). It stays within the month.
 - Extra covers shortness and outside time only, never lateness.
 - Whatever is left (lateness + uncovered shortness/outside) is charged to the **8h monthly allowance**.

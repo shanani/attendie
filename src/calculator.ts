@@ -156,8 +156,12 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
     return result;
   }
 
-  result.lateness = Math.max(0, clockIn - entryTo);
-  result.shortness = Math.max(0, expectedOut - clockOut);
+  // Prefer HR's own per-day minutes when the page lists them: HR counts seconds (the page shows
+  // only minutes) and applies a grace period, so its numbers are exact. They were worked out for
+  // the page's day type, so a day the user re-typed is calculated instead.
+  const hr = day.dayType === pageDay.dayType ? day.reported : null;
+  result.lateness = hr?.lateness ?? Math.max(0, clockIn - entryTo);
+  result.shortness = hr?.shortness ?? Math.max(0, expectedOut - clockOut);
   result.extra = Math.max(0, effectiveOut - expectedOut);
   return result;
 }
