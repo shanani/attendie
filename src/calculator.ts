@@ -15,8 +15,7 @@ export interface Rules {
   /** Flexible entry window; arriving after its end is lateness. */
   entryFrom: Minutes;
   entryTo: Minutes;
-  /** Entry window when the half-day leave is taken in the morning. */
-  halfDayAfternoonEntryFrom: Minutes;
+  /** Latest entry when the half-day leave is taken in the morning (work in the afternoon). */
   halfDayAfternoonEntryTo: Minutes;
   /** Nothing after this time counts (extra minutes stop here). */
   dayEnd: Minutes;
@@ -29,7 +28,6 @@ export const DEFAULT_RULES: Rules = {
   minimumWorked: h(4),
   entryFrom: h(7),
   entryTo: h(9),
-  halfDayAfternoonEntryFrom: h(11),
   halfDayAfternoonEntryTo: h(13),
   dayEnd: h(18),
 };
@@ -55,6 +53,8 @@ export interface DayResult {
   pageType: DayType;
   status: DayStatus;
   halfDay?: "morningWork" | "afternoonWork";
+  /** True when the minutes come from HR's detail table (half-day leave without sign-in/out times). */
+  fromPage?: boolean;
   /** Minutes actually worked inside the allowed window, minus time outside. */
   worked: number;
   lateness: number;
@@ -91,13 +91,17 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
     return result;
   }
   const { clockIn, clockOut } = day;
+  if (day.dayType === "halfDayLeave" && clockIn === null && clockOut === null) {
+    // The page shows no times on half-day leave days; use what HR lists for the day instead.
+    const reported = day.reported ?? { lateness: 0, shortness: 0, outside: 0 };
+    return { ...result, ...reported, fromPage: true };
+  }
   if (clockIn === null || clockOut === null || clockOut <= clockIn) {
     result.status = clockIn === null && clockOut === null ? "absent" : "missingPunch";
     return result;
   }
 
   const isHalfDay = day.dayType === "halfDayLeave";
-  let entryFrom = rules.entryFrom;
   let entryTo = rules.entryTo;
   let required = rules.dailyRequired;
   if (isHalfDay) {
@@ -105,17 +109,15 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
     // Arriving after the normal entry window means the leave was taken in the morning.
     const afternoon = clockIn > rules.entryTo + 60;
     result.halfDay = afternoon ? "afternoonWork" : "morningWork";
-    if (afternoon) {
-      entryFrom = rules.halfDayAfternoonEntryFrom;
-      entryTo = rules.halfDayAfternoonEntryTo;
-    }
+    if (afternoon) entryTo = rules.halfDayAfternoonEntryTo;
   }
 
   const outside =
-    day.outsideMinutes ??
+    day.reported?.outside ??
     (day.netMinutes !== null ? Math.max(0, clockOut - clockIn - day.netMinutes) : 0);
 
-  const effectiveIn = Math.max(clockIn, entryFrom);
+  // Half days too: only 7:00–18:00 counts, and anything past the required hours in it is make-up.
+  const effectiveIn = Math.max(clockIn, rules.entryFrom);
   const effectiveOut = Math.min(clockOut, rules.dayEnd);
   // A late arrival still has to stay until the end of the latest shift.
   const expectedOut = Math.min(effectiveIn, entryTo) + required;

@@ -1,4 +1,4 @@
-import type { DayType, Lang, Minutes, ParseResult, RawDay } from "./types";
+import type { DayType, Lang, Minutes, ParseResult, RawDay, ReportedMinutes } from "./types";
 
 /** Day-type labels as the HR page shows them, in both languages. */
 const DAY_TYPE_LABELS: [DayType, string[]][] = [
@@ -11,7 +11,12 @@ const DAY_TYPE_LABELS: [DayType, string[]][] = [
   ["regular", ["Regular", "منتظم"]],
 ];
 
-const OUTSIDE_LABELS = ["Out of STC", "خارج الشركة"];
+/** Row labels of the day's detail table ("Type | Minutes | Justified minutes"). */
+const REPORTED_LABELS: [keyof ReportedMinutes, string[]][] = [
+  ["lateness", ["Lateness", "التأخير"]],
+  ["shortness", ["Shortness", "Half-Day Shortness", "التقصير", "تقصير نصف يوم"]],
+  ["outside", ["Out of STC", "خارج الشركة"]],
+];
 
 const MONTHS: Record<string, number> = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
@@ -76,20 +81,19 @@ function detectDayType(rowText: string, hasTimes: boolean): DayType {
   return hasTimes ? "regular" : "unknown";
 }
 
-/** Sum of "Out of STC" minutes in the expandable detail row that follows a day row. */
-function readOutsideMinutes(dayRow: Element): number | null {
+/** Minutes HR lists in the expandable detail row that follows a day row. */
+function readReportedMinutes(dayRow: Element): ReportedMinutes | null {
   const detailRow = dayRow.nextElementSibling;
   if (!detailRow?.querySelector("td.cdk-column-expandedDetail")) return null;
-  const outsideLabels = OUTSIDE_LABELS.map(normalizeLabel);
-  let total = 0;
+  const reported: ReportedMinutes = { lateness: 0, shortness: 0, outside: 0 };
   for (const tr of Array.from(detailRow.querySelectorAll("table.detail-table tr"))) {
     const cells = tr.querySelectorAll("td");
     if (cells.length < 2) continue;
-    if (outsideLabels.includes(normalizeLabel(cells[0].textContent ?? ""))) {
-      total += Number(textOf(cells[1])) || 0;
-    }
+    const label = normalizeLabel(cells[0].textContent ?? "");
+    const match = REPORTED_LABELS.find(([, labels]) => labels.some((l) => normalizeLabel(l) === label));
+    if (match) reported[match[0]] += Number(textOf(cells[1])) || 0;
   }
-  return total;
+  return reported;
 }
 
 /** Reads the attendance table from the HR "Attendance Report" page. */
@@ -118,7 +122,7 @@ export function parseAttendancePage(root: ParentNode): ParseResult {
       dayType: detectDayType(rowText, clockIn !== null),
       clockIn,
       clockOut,
-      outsideMinutes: readOutsideMinutes(row),
+      reported: readReportedMinutes(row),
       netMinutes: parseDuration(textOf(cell("netAttendanceHours"))),
     });
   }

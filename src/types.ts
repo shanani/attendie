@@ -18,6 +18,14 @@ export type DayType =
 /** Day types the user chose per date, overriding what the page shows. */
 export type Overrides = Record<string, DayType>;
 
+export interface ReportedMinutes {
+  lateness: number;
+  /** Shortness, including half-day shortness. */
+  shortness: number;
+  /** "Out of STC" time. */
+  outside: number;
+}
+
 /** One day exactly as read from the HR attendance page. */
 export interface RawDay {
   /** ISO date, yyyy-mm-dd. */
@@ -25,8 +33,8 @@ export interface RawDay {
   dayType: DayType;
   clockIn: Minutes | null;
   clockOut: Minutes | null;
-  /** "Out of STC" minutes from the day's detail table, if listed. */
-  outsideMinutes: number | null;
+  /** Minutes HR lists in the day's expandable detail table; null if the table is missing. */
+  reported: ReportedMinutes | null;
   /** The page's "Total Hours" column, in minutes. */
   netMinutes: number | null;
 }

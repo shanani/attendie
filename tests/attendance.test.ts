@@ -13,7 +13,7 @@ const regular = (date: string, clockIn: string, clockOut: string, extra: Partial
   dayType: "regular",
   clockIn: parseClock(clockIn),
   clockOut: parseClock(clockOut),
-  outsideMinutes: 0,
+  reported: { lateness: 0, shortness: 0, outside: 0 },
   netMinutes: null,
   ...extra,
 });
@@ -46,13 +46,13 @@ describe("parser", () => {
       dayType: "regular",
       clockIn: 7 * 60 + 32,
       clockOut: 17 * 60 + 22,
-      outsideMinutes: 101,
+      reported: { lateness: 0, shortness: 0, outside: 101 },
       netMinutes: 8 * 60 + 9,
     });
     expect(byDate("2026-09-04").dayType).toBe("weekend");
     expect(byDate("2026-09-07").dayType).toBe("wfh");
     expect(byDate("2026-09-23").dayType).toBe("holiday");
-    expect(byDate("2026-09-20").outsideMinutes).toBe(148);
+    expect(byDate("2026-09-20").reported).toEqual({ lateness: 20, shortness: 0, outside: 148 });
   });
 });
 
@@ -109,6 +109,19 @@ describe("calculator", () => {
       "2026-09-30",
     );
     expect(afternoon.days[0]).toMatchObject({ status: "ok", halfDay: "afternoonWork", lateness: 15, extra: 30 });
+
+    // Make-up on a half day counts anywhere between 7:00 and 18:00.
+    const early = calculate(
+      [regular("2026-09-01", "10:30 AM", "3:30 PM", { dayType: "halfDayLeave" })],
+      "2026-09-30",
+    );
+    expect(early.days[0]).toMatchObject({ status: "ok", halfDay: "afternoonWork", lateness: 0, extra: 60 });
+
+    const long = calculate(
+      [regular("2026-09-01", "7:00 AM", "6:30 PM", { dayType: "halfDayLeave" })],
+      "2026-09-30",
+    );
+    expect(long.days[0]).toMatchObject({ halfDay: "morningWork", extra: 7 * 60 });
   });
 
   it("flags missing punches and absences on past working days", () => {
@@ -138,5 +151,22 @@ describe("user overrides", () => {
   it("can turn a work-from-home day into a counted day", () => {
     const wfh = regular("2026-09-01", "", "", { dayType: "wfh", clockIn: null, clockOut: null });
     expect(calculate([wfh], "2026-09-30", { "2026-09-01": "regular" }).days[0].status).toBe("absent");
+  });
+});
+
+describe("half-day leave days without sign-in/out (August sample)", () => {
+  it("reads them and uses HR's reported minutes", () => {
+    const { days } = load("attendance-en-halfday.html");
+    expect(days).toHaveLength(31);
+    const halfDays = days.filter((d) => d.dayType === "halfDayLeave");
+    expect(halfDays.map((d) => d.date)).toEqual(["2026-08-18", "2026-08-20", "2026-08-26"]);
+    expect(halfDays.every((d) => d.clockIn === null && d.clockOut === null)).toBe(true);
+
+    const s = calculate(days, "2026-09-28");
+    const day = (d: string) => s.days.find((x) => x.day.date === d)!;
+    expect(day("2026-08-18")).toMatchObject({ status: "ok", fromPage: true, lateness: 0 });
+    expect(day("2026-08-20")).toMatchObject({ status: "ok", fromPage: true, lateness: 11 });
+    expect(day("2026-08-26")).toMatchObject({ status: "ok", fromPage: true, lateness: 7 });
+    expect(s.days.filter((d) => d.status === "absent")).toHaveLength(0);
   });
 });

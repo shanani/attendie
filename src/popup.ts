@@ -150,7 +150,8 @@ function daysTable(summary: Summary, lang: Lang) {
           dash(d.outside),
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
-        const status = t.status[d.status] + (d.halfDay ? ` (${t.halfDay})` : "");
+        const note = d.fromPage ? t.fromPage : d.halfDay ? t.halfDay : "";
+        const status = t.status[d.status] + (note ? ` (${note})` : "");
         return el(
           "tr",
           {

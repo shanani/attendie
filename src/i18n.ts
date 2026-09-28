@@ -50,6 +50,7 @@ const en = {
     notCounted: "Not counted",
   } satisfies Record<DayStatus, string>,
   halfDay: "Half day",
+  fromPage: "HR figures, no times on page",
 };
 
 const ar: typeof en = {
@@ -101,6 +102,7 @@ const ar: typeof en = {
     notCounted: "لم يُحتسب",
   },
   halfDay: "نصف يوم",
+  fromPage: "أرقام الموارد البشرية، لا توجد أوقات",
 };
 
 export const STRINGS: Record<Lang, typeof en> = { en, ar };

@@ -38,7 +38,8 @@ All rules live in `src/calculator.ts` (`DEFAULT_RULES`).
 - Extra covers shortness and outside time only, never lateness.
 - Whatever is left (lateness + uncovered shortness/outside) is charged to the **8h monthly allowance**.
 - Under 4h of work is **absent**: not counted, no make-up. Half-day leave days are exempt.
-- Half-day leave requires 4h: entry 7:00–9:00 (work in the morning) or 11:00–13:00 (work in the afternoon).
+- Half-day leave requires 4h: entry 7:00–9:00 (work in the morning) or 11:00–13:00 (work in the afternoon). Make-up still counts anywhere between 7:00 and 18:00.
+- The HR page shows no sign-in/out times on half-day leave days, so for those days the lateness, shortness and outside minutes HR lists in the day's detail are used as-is (no make-up can be measured).
 
 ## Development
 
