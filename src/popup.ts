@@ -146,7 +146,12 @@ function justifyTile(summary: Summary, lang: Lang) {
       el("span", { textContent: `⚠ ${t.justifyTitle}` }),
       el("strong", { textContent: `${total} ${t.min} · ${hm(total)}` }),
     ),
-    el("div", { className: "small", textContent: t.justifyParts.replace("{0}", String(latenessOver)).replace("{1}", String(notMadeUp)) }),
+    el("div", {
+      className: "small",
+      textContent: latenessOver
+        ? t.justifyOver.replace("{0}", String(latenessOver)).replace("{1}", String(notMadeUp))
+        : t.justifyWithin.replace("{0}", String(summary.totals.lateness)).replace("{1}", String(notMadeUp)),
+    }),
   );
 }
 

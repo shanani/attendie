@@ -114,7 +114,11 @@ export interface Summary {
   remaining: number;
   /** Number of absent days (not counted in the totals). */
   absentDays: number;
-  /** Minutes that need a justification: lateness above the allowance, plus shortness/outside not made up. */
+  /**
+   * Minutes that need a justification: how far the charged minutes go past the allowance.
+   * With lateness over the allowance this is (lateness − allowance) + shortness/outside not made up;
+   * leftover make-up never reduces it, because make-up cannot cover lateness.
+   */
   justification: { total: number; latenessOver: number; notMadeUp: number };
   /** Number of days whose sign-in/out should be checked with the security gate report. */
   problemDays: number;
@@ -240,7 +244,7 @@ export function calculate(
     charged,
     remaining: rules.monthlyAllowance - charged,
     absentDays: results.filter((r) => r.status === "absent").length,
-    justification: { total: latenessOver + notMadeUp, latenessOver, notMadeUp },
+    justification: { total: Math.max(0, charged - rules.monthlyAllowance), latenessOver, notMadeUp },
     problemDays: results.filter((r) => r.punchProblem).length,
   };
 }

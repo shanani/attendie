@@ -290,29 +290,40 @@ describe("HR's own per-day minutes", () => {
 
 describe("needs justification", () => {
   const day = (date: string, clockIn: string, clockOut: string) => regular(date, clockIn, clockOut);
+  const days = (n: number, clockIn: string, clockOut: string, from = 1) =>
+    Array.from({ length: n }, (_, i) => day(`2026-09-${String(from + i).padStart(2, "0")}`, clockIn, clockOut));
 
-  it("is 0 when lateness is within 8 hours and all shortness is made up", () => {
-    // 60 min late (lateness is never made up, but it is within the allowance); 30 short, covered by 60 extra.
+  it("is 0 when everything fits within the allowance", () => {
+    // 60 min late, 30 min short covered by 60 min make-up.
     const s = calculate([day("2026-09-01", "10:00 AM", "5:00 PM"), day("2026-09-02", "8:00 AM", "3:30 PM"), day("2026-09-03", "7:00 AM", "4:00 PM")], "2026-09-30");
     expect(s.totals).toMatchObject({ lateness: 60, shortness: 30, extra: 60 });
     expect(s.justification).toEqual({ total: 0, latenessOver: 0, notMadeUp: 0 });
   });
 
-  it("adds lateness above 8 hours and the shortness/outside not made up", () => {
-    // Two days of 5h lateness (600 min, 120 over 8h), and 45 min short with nothing to make it up.
-    const s = calculate(
-      [day("2026-09-01", "2:00 PM", "6:00 PM"), day("2026-09-02", "2:00 PM", "6:00 PM"), day("2026-09-03", "8:00 AM", "3:15 PM")],
-      "2026-09-30",
-      { "2026-09-01": "halfDayMorning", "2026-09-02": "halfDayMorning" },
-    );
-    expect(s.totals.lateness).toBe(120); // half days: late after 13:00, 60 each
-    const long = calculate(
-      Array.from({ length: 10 }, (_, i) => day(`2026-09-${String(i + 1).padStart(2, "0")}`, "10:00 AM", "5:00 PM")).concat(
-        day("2026-09-15", "8:00 AM", "3:15 PM"),
-      ),
-      "2026-09-30",
-    );
-    expect(long.totals).toMatchObject({ lateness: 600, shortness: 45, extra: 0 });
-    expect(long.justification).toEqual({ total: 120 + 45, latenessOver: 120, notMadeUp: 45 });
+  it("with lateness within 8 hours, lets the allowance absorb uncovered shortness first", () => {
+    // 400 min late + 100 min short with no make-up = 500 charged: 20 over the allowance.
+    const s = calculate([...days(4, "10:40 AM", "5:00 PM"), day("2026-09-10", "8:00 AM", "2:20 PM")], "2026-09-30");
+    expect(s.totals).toMatchObject({ lateness: 400, shortness: 100, extra: 0 });
+    expect(s.justification).toEqual({ total: 20, latenessOver: 0, notMadeUp: 100 });
+    expect(s.remaining).toBe(-20);
+  });
+
+  it("with lateness over 8 hours, adds the excess lateness and the uncovered shortness", () => {
+    // 600 min late (120 over) + 45 min short with no make-up.
+    const s = calculate([...days(10, "10:00 AM", "5:00 PM"), day("2026-09-15", "8:00 AM", "3:15 PM")], "2026-09-30");
+    expect(s.totals).toMatchObject({ lateness: 600, shortness: 45, extra: 0 });
+    expect(s.justification).toEqual({ total: 165, latenessOver: 120, notMadeUp: 45 });
+  });
+
+  it("never lets leftover make-up reduce lateness over 8 hours", () => {
+    // 600 min late (120 over); 300 min make-up with nothing to cover: still 120.
+    const s = calculate([...days(10, "10:00 AM", "5:00 PM"), ...days(5, "7:00 AM", "4:00 PM", 15)], "2026-09-30");
+    expect(s.totals).toMatchObject({ lateness: 600, shortness: 0, extra: 300 });
+    expect(s.justification).toEqual({ total: 120, latenessOver: 120, notMadeUp: 0 });
+  });
+
+  it("is 2 min for the September sample", () => {
+    const s = calculate(load("attendance-en.html").days, "2026-09-28");
+    expect(s.justification).toEqual({ total: 2, latenessOver: 0, notMadeUp: 97 });
   });
 });

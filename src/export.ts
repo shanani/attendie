@@ -109,7 +109,7 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
     [x.sumGateDays, `SUMPRODUCT(--(LEN(${range("gateCheck")})>0))`, summary.problemDays, x.howGate],
     [x.sumLatenessOver, "MAX(0,B3-B2)", summary.justification.latenessOver, x.howLatenessOver],
     [x.sumNotMadeUp, "B7-B8", summary.justification.notMadeUp, x.howNotMadeUp],
-    [t.justifyTitle, "B14+B15", summary.justification.total, x.howJustify],
+    [t.justifyTitle, "MAX(0,B9-B2)", summary.justification.total, x.howJustify],
   ];
 
   const rows: Cell[][] = [
