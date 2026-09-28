@@ -1,4 +1,4 @@
-import type { DayStatus } from "./calculator";
+import type { AbsentReason, DayStatus } from "./calculator";
 import type { DayType, Lang } from "./types";
 
 const en = {
@@ -23,8 +23,14 @@ const en = {
   extraUsed: "Extra minutes used for shortness/outside",
   charged: "Charged to allowance",
   extraLeft: "Unused extra minutes (not carried over)",
-  absent: "Absent days (worked under 4h)",
-  missingPunch: "Days with a missing sign-in/out",
+  absentDays: "Absent days",
+  absentNote: "Not counted: under 4h (not a half day) or missing sign-in/out",
+  absentReason: {
+    noSignInOut: "no sign-in/out",
+    noSignOut: "no sign-out",
+    noSignIn: "no sign-in",
+    underMinimum: "worked {0}",
+  } satisfies Record<AbsentReason, string>,
   notCounted: "Not counted yet (today and later)",
   details: "Days (change a day's type to exclude or correct it)",
   none: "None",
@@ -47,16 +53,13 @@ const en = {
   status: {
     ok: "OK",
     absent: "Absent",
-    missingPunch: "Missing punch",
     excluded: "Excluded",
     notCounted: "Not counted",
   } satisfies Record<DayStatus, string>,
   halfDayPart: {
     morningLeave: "morning leave, counts 11:00–18:00",
     eveningLeave: "evening leave, counts 7:00–13:00",
-    unknown: "morning or evening? choose in Type",
   },
-  fromPage: "HR figures, no times on page",
 };
 
 const ar: typeof en = {
@@ -81,8 +84,14 @@ const ar: typeof en = {
   extraUsed: "دقائق إضافية غطّت التقصير/الخروج",
   charged: "المخصوم من الرصيد",
   extraLeft: "دقائق إضافية غير مستخدمة (لا تُرحّل)",
-  absent: "أيام الغياب (أقل من 4 ساعات)",
-  missingPunch: "أيام بدون بصمة دخول/خروج",
+  absentDays: "أيام الغياب",
+  absentNote: "لا تُحتسب: أقل من 4 ساعات (ليس نصف يوم) أو بدون بصمة دخول/خروج",
+  absentReason: {
+    noSignInOut: "بدون بصمة دخول/خروج",
+    noSignOut: "بدون بصمة خروج",
+    noSignIn: "بدون بصمة دخول",
+    underMinimum: "عمل {0}",
+  },
   notCounted: "لم تُحتسب بعد (اليوم وما بعده)",
   details: "الأيام (غيّر نوع اليوم لاستثنائه أو تصحيحه)",
   none: "لا يوجد",
@@ -105,16 +114,13 @@ const ar: typeof en = {
   status: {
     ok: "محتسب",
     absent: "غياب",
-    missingPunch: "بصمة ناقصة",
     excluded: "مستثنى",
     notCounted: "لم يُحتسب",
   },
   halfDayPart: {
     morningLeave: "إجازة صباحية، يُحتسب 11:00–18:00",
     eveningLeave: "إجازة مسائية، يُحتسب 7:00–13:00",
-    unknown: "صباحية أم مسائية؟ اختر من النوع",
   },
-  fromPage: "أرقام الموارد البشرية، لا توجد أوقات",
 };
 
 export const STRINGS: Record<Lang, typeof en> = { en, ar };

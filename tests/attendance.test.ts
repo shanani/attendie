@@ -124,16 +124,34 @@ describe("calculator", () => {
     expect(day("halfDayEvening")).toMatchObject({ halfDay: "eveningLeave", worked: 5 * 60, extra: 60 });
   });
 
-  it("flags missing punches and absences on past working days", () => {
+  it("marks any missing sign-in or sign-out as absent, on normal and half days", () => {
     const s = calculate(
       [
         regular("2026-09-01", "8:00 AM", "", { clockOut: null }),
         regular("2026-09-02", "", "", { clockIn: null, clockOut: null }),
+        regular("2026-09-03", "", "4:00 PM", { clockIn: null }),
+        regular("2026-09-06", "", "", { clockIn: null, clockOut: null, dayType: "halfDayLeave" }),
+        regular("2026-09-07", "8:00 AM", "10:00 AM"),
+        regular("2026-09-08", "8:00 AM", "10:00 AM", { dayType: "halfDayEvening" }),
       ],
       "2026-09-30",
     );
-    expect(s.days.map((d) => d.status)).toEqual(["missingPunch", "absent"]);
-    expect(s.charged).toBe(0);
+    expect(s.days.map((d) => [d.status, d.absentReason])).toEqual([
+      ["absent", "noSignOut"],
+      ["absent", "noSignInOut"],
+      ["absent", "noSignIn"],
+      ["absent", "noSignInOut"],
+      ["absent", "underMinimum"],
+      ["ok", undefined], // half day: no 4-hour minimum
+    ]);
+    expect(s.absentDays).toBe(5);
+    expect(s.totals.shortness).toBe(120); // only the half day is counted
+  });
+
+  it("does not mark today as absent when the sign-out is still missing", () => {
+    const s = calculate([regular("2026-09-28", "8:00 AM", "", { clockOut: null })], "2026-09-28");
+    expect(s.days[0].status).toBe("notCounted");
+    expect(s.absentDays).toBe(0);
   });
 });
 
@@ -155,7 +173,7 @@ describe("user overrides", () => {
 });
 
 describe("half-day leave days without sign-in/out (August sample)", () => {
-  it("reads them and uses HR's reported minutes", () => {
+  it("reads them and marks them absent", () => {
     const { days } = load("attendance-en-halfday.html");
     expect(days).toHaveLength(31);
     const halfDays = days.filter((d) => d.dayType === "halfDayLeave");
@@ -163,11 +181,13 @@ describe("half-day leave days without sign-in/out (August sample)", () => {
     expect(halfDays.every((d) => d.clockIn === null && d.clockOut === null)).toBe(true);
 
     const s = calculate(days, "2026-09-28");
-    const day = (d: string) => s.days.find((x) => x.day.date === d)!;
-    expect(day("2026-08-18")).toMatchObject({ status: "ok", fromPage: true, halfDay: "unknown", lateness: 0 });
-    expect(day("2026-08-20")).toMatchObject({ status: "ok", fromPage: true, lateness: 11 });
-    expect(day("2026-08-26")).toMatchObject({ status: "ok", fromPage: true, lateness: 7 });
-    expect(s.days.filter((d) => d.status === "absent")).toHaveLength(0);
+    const absent = s.days.filter((d) => d.status === "absent");
+    expect(absent.map((d) => [d.day.date, d.absentReason])).toEqual([
+      ["2026-08-18", "noSignInOut"],
+      ["2026-08-20", "noSignInOut"],
+      ["2026-08-26", "noSignInOut"],
+    ]);
+    expect(s.absentDays).toBe(3);
   });
 });
 
@@ -188,7 +208,6 @@ describe("punch list fallback", () => {
 
     const result = calculate([day], "2026-09-28").days[0];
     expect(result).toMatchObject({ status: "ok", halfDay: "morningLeave", lateness: 0, shortness: 0, extra: 29 });
-    expect(result.fromPage).toBeUndefined();
   });
 
   it("does not read the weekend punches of the Arabic sample as a working day", () => {

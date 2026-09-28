@@ -48,24 +48,31 @@ const EXCLUDED_TYPES: DayType[] = ["weekend", "holiday", "wfh", "annualVacation"
 export type DayStatus =
   /** Counted in the monthly totals. */
   | "ok"
-  /** Worked less than the minimum; not counted, flagged as absent. */
+  /** Worked under the minimum, or a missing sign-in/sign-out; not counted. See `absentReason`. */
   | "absent"
-  /** Working day with a missing sign-in or sign-out; not counted, flagged. */
-  | "missingPunch"
   /** Weekend, holiday, WFH, vacation or training. */
   | "excluded"
   /** Today or later; sign-out is not final yet. */
   | "notCounted";
+
+export type AbsentReason =
+  /** Neither sign-in nor sign-out. */
+  | "noSignInOut"
+  /** Signed in but no sign-out (or only one punch). */
+  | "noSignOut"
+  /** Signed out but no sign-in. */
+  | "noSignIn"
+  /** Worked less than the minimum on a full working day. */
+  | "underMinimum";
 
 export interface DayResult {
   day: RawDay;
   /** Day type as shown on the HR page, before any user override. */
   pageType: DayType;
   status: DayStatus;
-  /** Which part of a half day was the leave; "unknown" when there are no times and the user didn't choose. */
-  halfDay?: "morningLeave" | "eveningLeave" | "unknown";
-  /** True when the minutes come from HR's detail table (half-day leave without sign-in/out times). */
-  fromPage?: boolean;
+  absentReason?: AbsentReason;
+  /** Which part of a half day was the leave (chosen by the user, or detected from the arrival time). */
+  halfDay?: "morningLeave" | "eveningLeave";
   /** Minutes actually worked inside the allowed window, minus time outside. */
   worked: number;
   lateness: number;
@@ -87,6 +94,8 @@ export interface Summary {
   charged: number;
   /** Allowance left; negative means over the allowance. */
   remaining: number;
+  /** Number of absent days (not counted in the totals). */
+  absentDays: number;
 }
 
 function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Overrides): DayResult {
@@ -102,18 +111,14 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
     return result;
   }
   const { clockIn, clockOut } = day;
-  const isHalfDay = HALF_DAY_TYPES.includes(day.dayType);
-  if (isHalfDay && clockIn === null && clockOut === null) {
-    // The page shows no times on half-day leave days; use what HR lists for the day instead.
-    const reported = day.reported ?? { lateness: 0, shortness: 0, outside: 0 };
-    const halfDay = day.dayType === "halfDayMorning" ? "morningLeave" : day.dayType === "halfDayEvening" ? "eveningLeave" : "unknown";
-    return { ...result, ...reported, halfDay, fromPage: true };
-  }
+  // Only normal and half days get here: any missing sign-in or sign-out makes the day absent.
   if (clockIn === null || clockOut === null || clockOut <= clockIn) {
-    result.status = clockIn === null && clockOut === null ? "absent" : "missingPunch";
+    result.status = "absent";
+    result.absentReason = clockIn === null ? (clockOut === null ? "noSignInOut" : "noSignIn") : "noSignOut";
     return result;
   }
 
+  const isHalfDay = HALF_DAY_TYPES.includes(day.dayType);
   // Normal day: work counts 7:00–18:00. Half days leave out the vacation part:
   // morning leave counts 11:00–18:00, evening leave counts 7:00–13:00.
   let dayStart = rules.entryFrom;
@@ -147,6 +152,7 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
 
   if (!isHalfDay && result.worked < rules.minimumWorked) {
     result.status = "absent";
+    result.absentReason = "underMinimum";
     return result;
   }
 
@@ -189,5 +195,6 @@ export function calculate(
     extraLeft: totals.extra - extraUsed,
     charged,
     remaining: rules.monthlyAllowance - charged,
+    absentDays: results.filter((r) => r.status === "absent").length,
   };
 }

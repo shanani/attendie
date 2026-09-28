@@ -105,6 +105,25 @@ function row(label: string, value: string, className = "") {
   return el("div", { className: `row ${className}` }, el("span", { textContent: label }), el("strong", { textContent: value }));
 }
 
+function absentReason(d: DayResult, lang: Lang): string {
+  return d.absentReason ? STRINGS[lang].absentReason[d.absentReason].replace("{0}", hm(d.worked)) : "";
+}
+
+/** Red summary of absent days: the total, then each date with why it is absent. */
+function absentBlock(days: DayResult[], lang: Lang) {
+  const t = STRINGS[lang];
+  const sep = lang === "ar" ? "، " : ", ";
+  return el(
+    "div",
+    { className: `absent-block ${days.length ? "has-absent" : ""}` },
+    el("div", { className: "row" }, el("span", { textContent: t.absentDays }), el("strong", { textContent: String(days.length) })),
+    ...(days.length
+      ? [el("div", { textContent: days.map((d) => `${formatDate(d.day.date, lang)} (${absentReason(d, lang)})`).join(sep) })]
+      : []),
+    el("div", { className: "small note", textContent: t.absentNote }),
+  );
+}
+
 function dayList(title: string, days: DayResult[], lang: Lang) {
   const text = days.length
     ? days.map((d) => formatDate(d.day.date, lang)).join(lang === "ar" ? "، " : ", ")
@@ -146,13 +165,13 @@ function daysTable(summary: Summary, lang: Lang) {
           formatDate(d.day.date, lang),
           clock(d.day.clockIn),
           clock(d.day.clockOut),
-          counted || d.status === "absent" ? dash(d.worked) : "–",
+          counted || d.absentReason === "underMinimum" ? dash(d.worked) : "–",
           dash(d.lateness),
           dash(d.shortness),
           dash(d.outside),
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
-        const note = [d.halfDay && t.halfDayPart[d.halfDay], d.fromPage && t.fromPage].filter(Boolean).join(" · ");
+        const note = [d.halfDay && t.halfDayPart[d.halfDay], absentReason(d, lang)].filter(Boolean).join(" · ");
         const status = t.status[d.status] + (note ? ` (${note})` : "");
         return el(
           "tr",
@@ -202,8 +221,7 @@ function renderSummary(summary: Summary, lang: Lang) {
   const lists = el(
     "section",
     {},
-    dayList(t.absent, byStatus("absent"), lang),
-    ...(byStatus("missingPunch").length ? [dayList(t.missingPunch, byStatus("missingPunch"), lang)] : []),
+    absentBlock(byStatus("absent"), lang),
     ...(byStatus("notCounted").length ? [dayList(t.notCounted, byStatus("notCounted"), lang)] : []),
   );
 

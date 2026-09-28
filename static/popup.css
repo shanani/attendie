@@ -71,7 +71,11 @@ tr.overridden td:first-child::after { content: " •"; color: var(--accent); }
 table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 th, td { padding: 3px 4px; text-align: start; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 600; }
-tr.absent td, tr.missingPunch td { color: var(--danger); }
+tr.absent td { color: var(--danger); }
+.absent-block { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.absent-block .note { color: var(--muted); margin-top: 2px; }
+.absent-block.has-absent { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.absent-block.has-absent .row strong { font-size: 18px; }
 tr.notCounted td { color: var(--muted); }
 /* Keep signed numbers like "-5" reading left-to-right in the Arabic layout. */
 .stat .value strong, .stat .sub, .row strong { direction: ltr; unicode-bidi: isolate; }
