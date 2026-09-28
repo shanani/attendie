@@ -39,7 +39,7 @@ describe("collectAttendance", () => {
     const { doc, clicked } = augustPage();
     const result = await collectAttendance(doc, "2026-09-28", 300);
 
-    // Only the three half days lack times among past working/half days; each is opened and closed.
+    // Only half days are opened (and closed again); normal days use the times in their main row.
     expect(clicked).toEqual(["2026-08-18", "2026-08-18", "2026-08-20", "2026-08-20", "2026-08-26", "2026-08-26"]);
     expect(dayRows(doc).every((r) => r.getAttribute("aria-expanded") !== "true")).toBe(true);
 
@@ -54,6 +54,19 @@ describe("collectAttendance", () => {
     expect(res("2026-08-18")).toMatchObject({ status: "ok", halfDay: "morningLeave", lateness: 0, extra: 79 });
     expect(res("2026-08-20")).toMatchObject({ status: "ok", halfDay: "morningLeave", lateness: 11, extra: 60 });
     expect(res("2026-08-26")).toMatchObject({ status: "absent", absentReason: "noSignInOut" });
+  });
+
+  it("never opens a normal day, even one without times", async () => {
+    const { doc, clicked } = augustPage();
+    // Blank out 2 Aug's times so it looks like a normal day with no sign-in/out.
+    const row = dayRows(doc).find((r) => dayRowDate(r) === "2026-08-02")!;
+    for (const col of ["ClockIn", "ClockOut"]) row.querySelector(`td.cdk-column-${col}`)!.textContent = "";
+    const result = await collectAttendance(doc, "2026-09-28", 300);
+    expect(clicked).not.toContain("2026-08-02");
+    expect(calculate(result.days, "2026-09-28").days.find((d) => d.day.date === "2026-08-02")).toMatchObject({
+      status: "absent",
+      absentReason: "noSignInOut",
+    });
   });
 
   it("leaves today and later days alone", async () => {

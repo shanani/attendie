@@ -44,7 +44,7 @@ All rules live in `src/calculator.ts` (`DEFAULT_RULES`).
   - **Morning leave** (work in the afternoon): entry 11:00–13:00, only 11:00–18:00 counts.
   - **Evening leave** (work in the morning): entry 7:00–9:00, only 7:00–13:00 counts.
   - The page does not say which half was the leave. With times, arriving at 10:00 or later means morning leave, earlier means evening leave. You can also pick it in the day's **Type** dropdown.
-- When the main row has no sign-in/out times (half-day leave days always look like this), they are taken from the day's punch list. The page only loads that list when the row is opened, so the extension opens each such past day, reads the times, and closes it again. If there are still no times, the day is absent.
+- Normal days use the in/out/total time from their main row. Half-day leave days show no times there; their times are only in the day's punch list, which the page loads when the row is opened. So on **Generate summary** the extension opens each past half day, reads the times, and closes it again. A day still without times is absent.
 
 ## Development
 

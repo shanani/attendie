@@ -1,17 +1,14 @@
 import { dayRowDate, dayRows, parseAttendancePage, readPunches } from "./parser";
-import type { DayType, ParseResult } from "./types";
-
-/** Day types whose sign-in/out matters; for these, missing times are looked up in the punch list. */
-const NEEDS_TIMES: DayType[] = ["regular", "halfDayLeave", "unknown"];
+import type { ParseResult } from "./types";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Reads the page, first loading the punch lists it needs.
+ * Reads the page, first loading the punch lists of half-day leave days.
  *
- * The page fills a day's "Time in | Time out" punch list only when its row is expanded, and
- * half-day leave days show their times nowhere else. So for each past working or half day
- * without times, expand the row, wait for the punches, read them, and collapse the row again.
+ * Normal days show their times in the main row. Half-day leave days show them only in the
+ * "Time in | Time out" punch list, which the page fills when the row is expanded. So each past
+ * half day without times is expanded, its punches read, and the row collapsed again.
  * Nothing on the page is changed.
  *
  * @param today ISO date; today and later are not counted, so their rows are left alone.
@@ -24,7 +21,7 @@ export async function collectAttendance(doc: Document, today: string, timeoutMs 
     const date = dayRowDate(row);
     const day = result.days.find((d) => d.date === date);
     if (!date || !day || date >= today || day.clockIn !== null || day.clockOut !== null) continue;
-    if (!NEEDS_TIMES.includes(day.dayType)) continue;
+    if (day.dayType !== "halfDayLeave") continue;
 
     const wasExpanded = row.getAttribute("aria-expanded") === "true";
     if (!wasExpanded) row.click();
@@ -42,7 +39,6 @@ export async function collectAttendance(doc: Document, today: string, timeoutMs 
     if (!found || (found.clockIn === null && found.clockOut === null)) continue;
     day.clockIn = found.clockIn;
     day.clockOut = found.clockOut;
-    if (day.dayType === "unknown") day.dayType = "regular";
   }
   return result;
 }
