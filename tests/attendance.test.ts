@@ -69,7 +69,7 @@ describe("calculator", () => {
     const status = (d: string) => s.days.find((x) => x.day.date === d)!.status;
     expect(status("2026-09-10")).toBe("absent"); // 3:55 worked
     expect(status("2026-09-22")).toBe("ok"); // 4:20 worked
-    expect(status("2026-09-28")).toBe("notCounted");
+    expect(status("2026-09-28")).toBe("excluded"); // today, excluded by default
     expect(status("2026-09-07")).toBe("excluded");
 
     // Lateness and shortness are HR's own per-day minutes (the page lists 3 Sep shortness as 31, not 32).
@@ -150,10 +150,50 @@ describe("calculator", () => {
     expect(s.totals.shortness).toBe(120); // only the half day is counted
   });
 
-  it("does not mark today as absent when the sign-out is still missing", () => {
+  it("excludes today by default, without flagging its missing sign-out", () => {
     const s = calculate([regular("2026-09-28", "8:00 AM", "", { clockOut: null })], "2026-09-28");
-    expect(s.days[0].status).toBe("notCounted");
+    expect(s.days[0]).toMatchObject({ status: "excluded", todayDefault: true, pageType: "regular" });
+    expect(s.days[0].punchProblem).toBeUndefined();
     expect(s.absentDays).toBe(0);
+  });
+
+  it("counts today when the user gives it a type", () => {
+    const today = regular("2026-09-28", "8:00 AM", "4:30 PM");
+    const s = calculate([today], "2026-09-28", { "2026-09-28": "regular" });
+    expect(s.days[0]).toMatchObject({ status: "ok", extra: 30 });
+    expect(s.days[0].todayDefault).toBeUndefined();
+  });
+
+  it("leaves later days uncounted", () => {
+    const s = calculate([regular("2026-09-29", "", "", { clockIn: null, clockOut: null })], "2026-09-28");
+    expect(s.days[0].status).toBe("notCounted");
+  });
+
+  it("flags odd sign-in/out for a check with the security gate report", () => {
+    const s = calculate(
+      [
+        regular("2026-09-01", "8:00 AM", "", { clockOut: null }),
+        regular("2026-09-02", "", "4:00 PM", { clockIn: null }),
+        regular("2026-09-03", "9:00 AM", "9:01 AM"),
+        regular("2026-09-06", "8:00 AM", "4:00 PM", { unpairedPunch: true }),
+        regular("2026-09-07", "8:00 AM", "4:00 PM"),
+        regular("2026-09-08", "", "", { clockIn: null, clockOut: null }),
+        regular("2026-09-09", "8:00 AM", "4:00 PM", { dayType: "weekend", unpairedPunch: true }),
+      ],
+      "2026-09-30",
+    );
+    expect(s.days.map((d) => d.punchProblem)).toEqual([
+      "missingSignOut",
+      "missingSignIn",
+      "singlePunch",
+      "unpairedPunch",
+      undefined, // fine
+      undefined, // no punches at all: absent, not odd
+      undefined, // weekend: not checked
+    ]);
+    expect(s.problemDays).toBe(4);
+    // An unpaired punch in the list does not stop the day being counted.
+    expect(s.days[3].status).toBe("ok");
   });
 });
 

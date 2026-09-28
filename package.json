@@ -20,5 +20,8 @@
     "jsdom": "^30.1.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
   }
 }

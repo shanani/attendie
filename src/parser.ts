@@ -100,9 +100,10 @@ function readReportedMinutes(dayRow: Element): ReportedMinutes | null {
  * First sign-in and last sign-out from the "Time in | Time out" punch list in the detail row.
  * Used when the main row has no times (e.g. half-day leave days).
  */
-export function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOut: Minutes | null } {
+export function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOut: Minutes | null; unpaired: boolean } {
   const ins: Minutes[] = [];
   const outs: Minutes[] = [];
+  let unpaired = false;
   const detailRow = dayRow.nextElementSibling;
   if (detailRow?.querySelector("td.cdk-column-expandedDetail")) {
     for (const tr of Array.from(detailRow.querySelectorAll("table.detail-table tr"))) {
@@ -112,11 +113,13 @@ export function readPunches(dayRow: Element): { clockIn: Minutes | null; clockOu
       const clockOut = parseClock(textOf(cells[1]));
       if (clockIn !== null) ins.push(clockIn);
       if (clockOut !== null) outs.push(clockOut);
+      if ((clockIn === null) !== (clockOut === null)) unpaired = true;
     }
   }
   return {
     clockIn: ins.length ? Math.min(...ins) : null,
     clockOut: outs.length ? Math.max(...outs) : null,
+    unpaired,
   };
 }
 
@@ -145,7 +148,8 @@ export function parseAttendancePage(root: ParentNode): ParseResult {
 
     let clockIn = parseClock(textOf(cell("ClockIn")));
     let clockOut = parseClock(textOf(cell("ClockOut")));
-    if (clockIn === null && clockOut === null) ({ clockIn, clockOut } = readPunches(row));
+    const punches = readPunches(row);
+    if (clockIn === null && clockOut === null) ({ clockIn, clockOut } = punches);
     const rowText = Array.from(row.querySelectorAll(":scope > td"))
       .map((td) => td.textContent ?? "")
       .join(" ");
@@ -157,6 +161,7 @@ export function parseAttendancePage(root: ParentNode): ParseResult {
       clockOut,
       reported: readReportedMinutes(row),
       netMinutes: parseDuration(textOf(cell("netAttendanceHours"))),
+      ...(punches.unpaired ? { unpairedPunch: true } : {}),
     });
   }
 

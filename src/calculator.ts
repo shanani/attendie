@@ -24,6 +24,8 @@ export interface Rules {
   halfDayEveningEnd: Minutes;
   /** Half day with no leave part given: arriving at or after this means morning leave. */
   halfDayDetectAt: Minutes;
+  /** Sign-in and sign-out closer together than this look like one punch recorded twice. */
+  singlePunchWithin: number;
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -38,6 +40,7 @@ export const DEFAULT_RULES: Rules = {
   halfDayMorningEntryTo: h(13),
   halfDayEveningEnd: h(13),
   halfDayDetectAt: h(10),
+  singlePunchWithin: 5,
 };
 
 const HALF_DAY_TYPES: DayType[] = ["halfDayLeave", "halfDayMorning", "halfDayEvening"];
@@ -50,10 +53,21 @@ export type DayStatus =
   | "ok"
   /** Worked under the minimum, or a missing sign-in/sign-out; not counted. See `absentReason`. */
   | "absent"
-  /** Weekend, holiday, WFH, vacation or training. */
+  /** Weekend, holiday, WFH, vacation or training; or excluded by the user (today is by default). */
   | "excluded"
-  /** Today or later; sign-out is not final yet. */
+  /** A later day; nothing to count yet. */
   | "notCounted";
+
+/** Why a day's sign-in/out looks wrong and should be checked against the security gate report. */
+export type PunchProblem =
+  /** Signed out but no sign-in. */
+  | "missingSignIn"
+  /** Signed in but no sign-out. */
+  | "missingSignOut"
+  /** Sign-in and sign-out a few minutes apart, i.e. one punch. */
+  | "singlePunch"
+  /** The day's punch list has a sign-in without a sign-out (or the reverse). */
+  | "unpairedPunch";
 
 export type AbsentReason =
   /** Neither sign-in nor sign-out. */
@@ -71,6 +85,10 @@ export interface DayResult {
   pageType: DayType;
   status: DayStatus;
   absentReason?: AbsentReason;
+  /** Set when the sign-in/out looks wrong; the day should be checked with the security gate report. */
+  punchProblem?: PunchProblem;
+  /** Today, excluded by default because it is not over yet; the user can change its type to count it. */
+  todayDefault?: boolean;
   /** Which part of a half day was the leave (chosen by the user, or detected from the arrival time). */
   halfDay?: "morningLeave" | "eveningLeave";
   /** Minutes actually worked inside the allowed window, minus time outside. */
@@ -96,22 +114,40 @@ export interface Summary {
   remaining: number;
   /** Number of absent days (not counted in the totals). */
   absentDays: number;
+  /** Number of days whose sign-in/out should be checked with the security gate report. */
+  problemDays: number;
+}
+
+/** Past normal or half day whose punches look wrong, or undefined when they look fine. */
+function findPunchProblem(day: RawDay, rules: Rules): PunchProblem | undefined {
+  const { clockIn, clockOut } = day;
+  if (clockIn === null && clockOut !== null) return "missingSignIn";
+  if (clockIn !== null && clockOut === null) return "missingSignOut";
+  if (clockIn !== null && clockOut !== null && clockOut - clockIn < rules.singlePunchWithin) return "singlePunch";
+  if (day.unpairedPunch) return "unpairedPunch";
+  return undefined;
 }
 
 function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Overrides): DayResult {
-  const day = { ...pageDay, dayType: overrides[pageDay.date] ?? pageDay.dayType };
+  // Today is not over (the sign-out may be missing), so it is excluded unless the user chose a type.
+  const todayDefault = pageDay.date === today && !(pageDay.date in overrides);
+  const day = { ...pageDay, dayType: todayDefault ? "excluded" : (overrides[pageDay.date] ?? pageDay.dayType) };
   const result: DayResult = { day, pageType: pageDay.dayType, status: "ok", worked: 0, lateness: 0, shortness: 0, outside: 0, extra: 0 };
+  if (todayDefault) result.todayDefault = true;
 
   if (EXCLUDED_TYPES.includes(day.dayType) || (day.dayType === "unknown" && day.clockIn === null)) {
     result.status = "excluded";
     return result;
   }
-  if (day.date >= today) {
+  if (day.date > today) {
     result.status = "notCounted";
     return result;
   }
+  // Only normal and half days get here. Today still has time to sign out, so it is never flagged.
+  if (day.date < today) result.punchProblem = findPunchProblem(day, rules);
+
   const { clockIn, clockOut } = day;
-  // Only normal and half days get here: any missing sign-in or sign-out makes the day absent.
+  // Any missing sign-in or sign-out makes the day absent.
   if (clockIn === null || clockOut === null || clockOut <= clockIn) {
     result.status = "absent";
     result.absentReason = clockIn === null ? (clockOut === null ? "noSignInOut" : "noSignIn") : "noSignOut";
@@ -200,5 +236,6 @@ export function calculate(
     charged,
     remaining: rules.monthlyAllowance - charged,
     absentDays: results.filter((r) => r.status === "absent").length,
+    problemDays: results.filter((r) => r.punchProblem).length,
   };
 }

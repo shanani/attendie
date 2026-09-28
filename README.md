@@ -28,7 +28,15 @@ Then load the `dist` folder as above.
 - **Total make-up time**: extra minutes earned (after the 8h day, up to 6 PM).
 - **Total lateness**: minutes arriving after 9:00.
 - **Lateness + shortness/outside**: all missing time before any make-up is applied.
-- **Absent days** in red: the total and each date with its reason. Also days not counted yet (today and later), and a day-by-day table.
+- **Absent days** in red: the total and each date with its reason.
+- **Days to check with the security gate report** in orange: a sign-in without a sign-out (or the reverse), one punch (in and out a few minutes apart), or an unpaired punch in the day's punch list.
+- **Today** is excluded by default because it is not over yet; to count it, change its type in the day table. Later days are not counted.
+- A day-by-day table.
+
+**Export to Excel** downloads the month as `attendance-YYYY-MM.xlsx` for checking by hand:
+
+- **Summary** sheet: every total as a formula over the Days sheet, next to the extension's value and the difference (should be 0), plus the rules.
+- **Days** sheet: one row per day with real Excel dates and times, a `Counted (1/0)` column you can change to see the totals update, an `Out − In` formula column, the reason for any absence, and the same red (absent) / orange (check gate report) colours.
 
 In the day table you can change any day's type (for example mark a day as vacation, half-day leave, or **Excluded**). The popup recalculates right away. Your changes are saved in the extension, per date, and can be reset for the month.
 
@@ -37,7 +45,7 @@ In the day table you can change any day's type (for example mark a day as vacati
 All rules live in `src/calculator.ts` (`DEFAULT_RULES`).
 
 - Weekends, holidays, work from home, annual vacation and training are excluded.
-- Today and later days are not counted (sign-out is not final).
+- Today is excluded by default (its sign-out is not final); later days are not counted.
 - Flexible entry 7:00–9:00; required 8h. Arriving after 9:00 is **lateness** and you still have to stay until 17:00.
 - Time before 7:00 and after 18:00 does not count.
 - Leaving before entry + 8h is **shortness**; "Out of STC" minutes are **outside** time.
@@ -53,6 +61,10 @@ All rules live in `src/calculator.ts` (`DEFAULT_RULES`).
   - **Evening leave** (work in the morning): entry 7:00–9:00, only 7:00–13:00 counts.
   - The page does not say which half was the leave. With times, arriving at 10:00 or later means morning leave, earlier means evening leave. You can also pick it in the day's **Type** dropdown.
 - Normal days use the in/out/total time from their main row. Half-day leave days show no times there; their times are only in the day's punch list, which the page loads when the row is opened. So on **Generate summary** the extension opens each past half day, reads the times, and closes it again. A day still without times is absent.
+
+## Icon
+
+`static/icons/icon.svg` (and a simpler `icon-small.svg` for 16/32 px). After editing, regenerate the PNGs with `node scripts/icons.mjs` (needs Playwright).
 
 ## Development
 

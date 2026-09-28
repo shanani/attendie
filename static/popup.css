@@ -6,6 +6,8 @@
   --accent: #0a7c5a;
   --danger: #c62828;
   --soft: #f5f5f7;
+  --warn: #e67700;
+  --warn-text: #a14f00;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -17,6 +19,8 @@
     --accent: #30d158;
     --danger: #ff6961;
     --soft: #2c2c2e;
+    --warn: #ff9f0a;
+    --warn-text: #ffb340;
   }
 }
 * { box-sizing: border-box; }
@@ -72,6 +76,13 @@ table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-nu
 th, td { padding: 3px 4px; text-align: start; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 600; }
 tr.absent td { color: var(--danger); }
+tr.problem td { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+tr.problem td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+.gate-block { border: 1px solid var(--warn); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; color: var(--warn-text); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.gate-block .row strong { font-size: 18px; }
+.gate-block .note { color: var(--muted); margin-top: 2px; }
+.actions { display: flex; gap: 8px; }
+.actions button { margin-top: 12px; }
 .absent-block { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
 .absent-block .note { color: var(--muted); margin-top: 2px; }
 .absent-block.has-absent { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }

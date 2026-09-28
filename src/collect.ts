@@ -36,9 +36,10 @@ export async function collectAttendance(doc: Document, today: string, timeoutMs 
 
   for (const day of result.days) {
     const found = punches.get(day.date);
-    if (!found || (found.clockIn === null && found.clockOut === null)) continue;
+    if (!found || (found.clockIn === null && found.clockOut === null && !found.unpaired)) continue;
     day.clockIn = found.clockIn;
     day.clockOut = found.clockOut;
+    if (found.unpaired) day.unpairedPunch = true;
   }
   return result;
 }

@@ -1,4 +1,5 @@
 import { calculate, type DayResult, type Summary } from "./calculator";
+import { attendanceWorkbook } from "./export";
 import { STRINGS } from "./i18n";
 import type { DayType, Lang, Minutes, Overrides, ParseResult } from "./types";
 
@@ -124,6 +125,31 @@ function absentBlock(days: DayResult[], lang: Lang) {
   );
 }
 
+/** Orange list of days whose sign-in/out should be checked with the security gate report. */
+function gateBlock(days: DayResult[], lang: Lang) {
+  const t = STRINGS[lang];
+  const sep = lang === "ar" ? "، " : ", ";
+  return el(
+    "div",
+    { className: "gate-block" },
+    el("div", { className: "row" }, el("span", { textContent: `⚠ ${t.gateDays}` }), el("strong", { textContent: String(days.length) })),
+    el("div", { textContent: days.map((d) => `${formatDate(d.day.date, lang)} (${t.punchProblem[d.punchProblem!]})`).join(sep) }),
+    el("div", { className: "small note", textContent: t.gateNote }),
+  );
+}
+
+function downloadExcel(summary: Summary, lang: Lang) {
+  const blob = new Blob([attendanceWorkbook(summary, lang) as BlobPart], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = el("a", { href: url, download: `attendance-${summary.month}.xlsx` });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 function dayList(title: string, days: DayResult[], lang: Lang) {
   const text = days.length
     ? days.map((d) => formatDate(d.day.date, lang)).join(lang === "ar" ? "، " : ", ")
@@ -141,7 +167,9 @@ function typeSelect(result: DayResult, lang: Lang) {
   );
   select.addEventListener("change", async () => {
     const chosen = select.value as DayType;
-    if (chosen === result.pageType) delete overrides[result.day.date];
+    // Today defaults to excluded, so any other choice for it has to be remembered.
+    const defaultType = result.day.date === localToday() ? "excluded" : result.pageType;
+    if (chosen === defaultType) delete overrides[result.day.date];
     else overrides[result.day.date] = chosen;
     await saveOverrides();
     renderCurrent();
@@ -159,7 +187,7 @@ function daysTable(summary: Summary, lang: Lang) {
       "tbody",
       {},
       ...summary.days.map((d) => {
-        const overridden = d.day.dayType !== d.pageType;
+        const overridden = d.day.dayType !== d.pageType && !d.todayDefault;
         const counted = d.status === "ok";
         const cells = [
           formatDate(d.day.date, lang),
@@ -171,12 +199,18 @@ function daysTable(summary: Summary, lang: Lang) {
           dash(d.outside),
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
-        const note = [d.halfDay && t.halfDayPart[d.halfDay], absentReason(d, lang)].filter(Boolean).join(" · ");
-        const status = t.status[d.status] + (note ? ` (${note})` : "");
+        const note = [
+          d.halfDay && t.halfDayPart[d.halfDay],
+          absentReason(d, lang),
+          d.todayDefault && t.excel.todayNote,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const status = (d.punchProblem ? "⚠ " : "") + t.status[d.status] + (note ? ` (${note})` : "");
         return el(
           "tr",
           {
-            className: `${d.status}${overridden ? " overridden" : ""}`,
+            className: `${d.status}${overridden ? " overridden" : ""}${d.punchProblem ? " problem" : ""}`,
             title: overridden ? t.overridden.replace("{0}", t.dayTypes[d.pageType]) : "",
           },
           ...cells,
@@ -222,6 +256,10 @@ function renderSummary(summary: Summary, lang: Lang) {
     "section",
     {},
     absentBlock(byStatus("absent"), lang),
+    ...(summary.problemDays ? [gateBlock(summary.days.filter((d) => d.punchProblem), lang)] : []),
+    ...summary.days
+      .filter((d) => d.todayDefault)
+      .map((d) => el("p", { className: "muted small", textContent: t.todayExcluded.replace("{0}", formatDate(d.day.date, lang)) })),
     ...(byStatus("notCounted").length ? [dayList(t.notCounted, byStatus("notCounted"), lang)] : []),
   );
 
@@ -259,6 +297,8 @@ function renderSummary(summary: Summary, lang: Lang) {
 
   const again = el("button", { className: "secondary", textContent: t.generate });
   again.addEventListener("click", () => generate(lang));
+  const exportButton = el("button", { className: "secondary", textContent: `⬇ ${t.exportExcel}` });
+  exportButton.addEventListener("click", () => downloadExcel(summary, lang));
 
   app.replaceChildren(
     el("h1", { textContent: `${t.title} · ${formatMonth(summary.month, lang)}` }),
@@ -267,7 +307,7 @@ function renderSummary(summary: Summary, lang: Lang) {
     lists,
     el("section", {}, breakdown),
     el("section", {}, days),
-    again,
+    el("div", { className: "actions" }, exportButton, again),
   );
 }
 

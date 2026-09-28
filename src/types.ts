@@ -42,6 +42,8 @@ export interface RawDay {
   reported: ReportedMinutes | null;
   /** The page's "Total Hours" column, in minutes. */
   netMinutes: number | null;
+  /** The day's punch list (when loaded) has a sign-in without a sign-out, or the reverse. */
+  unpairedPunch?: boolean;
 }
 
 export interface ParseResult {
