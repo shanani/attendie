@@ -1,5 +1,7 @@
-import { DEFAULT_RULES, type DayResult, type Rules, type Summary } from "./calculator";
+import type { DayResult, Summary } from "./calculator";
+import { clock, halfDayNote, hm } from "./format";
 import { STRINGS } from "./i18n";
+import { DEFAULT_SETTINGS, type Settings, shiftWindows } from "./settings";
 import type { Lang } from "./types";
 import { buildXlsx, columnName, excelDate, type Cell, type Sheet, type Style } from "./xlsx";
 
@@ -8,6 +10,7 @@ const DAY_COLUMNS = [
   "date",
   "pageType",
   "typeUsed",
+  "shift",
   "counted",
   "status",
   "gateCheck",
@@ -26,12 +29,11 @@ const DAY_COLUMNS = [
 type DayColumn = (typeof DAY_COLUMNS)[number];
 
 const WIDTHS: Record<DayColumn, number> = {
-  date: 17, pageType: 16, typeUsed: 16, counted: 9, status: 11, gateCheck: 26, notes: 38, timeIn: 9, timeOut: 9,
+  date: 17, pageType: 16, typeUsed: 16, shift: 14, counted: 9, status: 11, gateCheck: 26, notes: 38, timeIn: 9, timeOut: 9,
   span: 11, pageTotal: 11, worked: 10, lateness: 10, shortness: 10, outside: 10, extra: 10, source: 12,
 };
 
 const col = (key: DayColumn) => columnName(DAY_COLUMNS.indexOf(key));
-const hm = (m: number) => `${m < 0 ? "-" : ""}${Math.floor(Math.abs(m) / 60)}:${String(Math.abs(m) % 60).padStart(2, "0")}`;
 
 function rowStyle(d: DayResult): Style {
   if (d.punchProblem) return { fill: "orange" };
@@ -52,7 +54,7 @@ function dayRow(d: DayResult, lang: Lang, rowNumber: number): Cell[] {
   const notes = [
     d.todayDefault && x.todayNote,
     d.day.dayType !== d.pageType && !d.todayDefault && t.overridden.replace("{0}", t.dayTypes[d.pageType]),
-    d.halfDay && t.halfDayPart[d.halfDay],
+    halfDayNote(d, lang),
     d.absentReason && t.absentReason[d.absentReason].replace("{0}", hm(d.worked)),
   ].filter(Boolean) as string[];
 
@@ -63,6 +65,7 @@ function dayRow(d: DayResult, lang: Lang, rowNumber: number): Cell[] {
     date: { value: excelDate(d.day.date), style: { ...base, numFmt: "date" } },
     pageType: text(t.dayTypes[d.pageType]),
     typeUsed: text(t.dayTypes[d.day.dayType]),
+    shift: text(t.shiftNames[d.shift]),
     counted: { value: counted ? 1 : 0, style: { ...base, numFmt: "int", bold: true } },
     status: text(t.status[d.status]),
     gateCheck: text(d.punchProblem ? `⚠ ${t.punchProblem[d.punchProblem]}` : ""),
@@ -85,7 +88,39 @@ function dayRow(d: DayResult, lang: Lang, rowNumber: number): Cell[] {
   return DAY_COLUMNS.map((key) => cells[key]);
 }
 
-function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: number, rules: Rules): Sheet {
+/** The rules as they apply with these settings, one line each. */
+function ruleLines(lang: Lang, settings: Settings): string[] {
+  const x = STRINGS[lang].excel;
+  const t = STRINGS[lang];
+  const fill = (template: string, values: Record<string, string>) =>
+    template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? `{${key}}`);
+  const [excluded, allowance, shift, ramadanDays, ...rest] = x.rules;
+  const shiftLine = (name: "regular" | "ramadan") => {
+    const s = settings[name];
+    return fill(shift, {
+      shift: t.shiftNames[name],
+      hours: hm(s.hours),
+      from: clock(s.entryFrom),
+      to: clock(s.entryTo),
+      until: clock(s.makeupUntil),
+      minimum: hm(shiftWindows(s).minimumWorked),
+    });
+  };
+  const dates =
+    settings.ramadanFrom && settings.ramadanTo
+      ? x.ramadanDates.replace("{0}", settings.ramadanFrom).replace("{1}", settings.ramadanTo)
+      : "";
+  return [
+    excluded,
+    fill(allowance, { allowance: hm(settings.monthlyAllowance) }),
+    shiftLine("regular"),
+    shiftLine("ramadan"),
+    fill(ramadanDays, { names: settings.ramadanNames.map((n) => `"${n}"`).join(", "), dates }),
+    ...rest,
+  ];
+}
+
+function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: number, settings: Settings): Sheet {
   const t = STRINGS[lang];
   const x = t.excel;
   const range = (key: DayColumn) => `'${daysSheet}'!${col(key)}2:${col(key)}${lastRow}`;
@@ -95,7 +130,7 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
 
   // [label, formula (row numbers refer to this sheet), extension's value, how it is worked out]
   const lines: [string, string | null, number, string][] = [
-    [x.sumAllowance, null, rules.monthlyAllowance, x.howAllowance],
+    [x.sumAllowance, null, settings.monthlyAllowance, x.howAllowance],
     [t.lateness, sumCounted("lateness"), totals.lateness, x.howSum],
     [t.shortness, sumCounted("shortness"), totals.shortness, x.howSum],
     [t.outside, sumCounted("outside"), totals.outside, x.howSum],
@@ -129,7 +164,7 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
     }),
     [],
     [{ value: x.rulesTitle, style: { bold: true } }],
-    ...x.rules.map((line) => [{ value: line, style: { wrap: false } }]),
+    ...ruleLines(lang, settings).map((line) => [{ value: line, style: { wrap: false } }]),
     [],
     [{ value: x.tip, style: { fill: "yellow" } }],
   ];
@@ -137,7 +172,7 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
 }
 
 /** The Days and Summary sheets for a month, with formulas that recompute every total. */
-export function attendanceSheets(summary: Summary, lang: Lang, rules: Rules = DEFAULT_RULES): Sheet[] {
+export function attendanceSheets(summary: Summary, lang: Lang, settings: Settings = DEFAULT_SETTINGS): Sheet[] {
   const x = STRINGS[lang].excel;
   const header: Style = { bold: true, fill: "header", wrap: true };
   const days: Sheet = {
@@ -151,9 +186,9 @@ export function attendanceSheets(summary: Summary, lang: Lang, rules: Rules = DE
     autoFilter: true,
     rightToLeft: lang === "ar",
   };
-  return [summarySheet(summary, lang, x.daysSheet, summary.days.length + 1, rules), days];
+  return [summarySheet(summary, lang, x.daysSheet, summary.days.length + 1, settings), days];
 }
 
-export function attendanceWorkbook(summary: Summary, lang: Lang, rules: Rules = DEFAULT_RULES): Uint8Array {
-  return buildXlsx(attendanceSheets(summary, lang, rules));
+export function attendanceWorkbook(summary: Summary, lang: Lang, settings: Settings = DEFAULT_SETTINGS): Uint8Array {
+  return buildXlsx(attendanceSheets(summary, lang, settings));
 }

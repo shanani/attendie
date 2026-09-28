@@ -1,48 +1,7 @@
+import { DEFAULT_SETTINGS, type Settings, type ShiftName, shiftOf, shiftWindows } from "./settings";
 import type { DayType, Minutes, Overrides, RawDay } from "./types";
 
-const h = (hours: number, minutes = 0): Minutes => hours * 60 + minutes;
-
-/** Company attendance policy. All values are minutes (times are minutes since midnight). */
-export interface Rules {
-  /** Monthly allowance that can cover lateness, shortness and time outside. */
-  monthlyAllowance: number;
-  /** Required work on a normal day. */
-  dailyRequired: number;
-  /** Required work on a half-day-leave day. */
-  halfDayRequired: number;
-  /** Below this much work the day is absent (no makeup), unless it is a half-day leave. */
-  minimumWorked: number;
-  /** Flexible entry window; arriving after its end is lateness. */
-  entryFrom: Minutes;
-  entryTo: Minutes;
-  /** Nothing after this time counts (extra minutes stop here). */
-  dayEnd: Minutes;
-  /** Morning half-day leave: work counts from here, entry window runs to `halfDayMorningEntryTo`. */
-  halfDayMorningStart: Minutes;
-  halfDayMorningEntryTo: Minutes;
-  /** Evening half-day leave: work (and make-up) counts only until here. */
-  halfDayEveningEnd: Minutes;
-  /** Half day with no leave part given: arriving at or after this means morning leave. */
-  halfDayDetectAt: Minutes;
-  /** Sign-in and sign-out closer together than this look like one punch recorded twice. */
-  singlePunchWithin: number;
-}
-
-export const DEFAULT_RULES: Rules = {
-  monthlyAllowance: h(8),
-  dailyRequired: h(8),
-  halfDayRequired: h(4),
-  minimumWorked: h(4),
-  entryFrom: h(7),
-  entryTo: h(9),
-  dayEnd: h(18),
-  halfDayMorningStart: h(11),
-  halfDayMorningEntryTo: h(13),
-  halfDayEveningEnd: h(13),
-  halfDayDetectAt: h(10),
-  singlePunchWithin: 5,
-};
-
+export { DEFAULT_SETTINGS } from "./settings";
 const HALF_DAY_TYPES: DayType[] = ["halfDayLeave", "halfDayMorning", "halfDayEvening"];
 
 /** Day types that are left out of the calculation entirely. */
@@ -91,6 +50,10 @@ export interface DayResult {
   todayDefault?: boolean;
   /** Which part of a half day was the leave (chosen by the user, or detected from the arrival time). */
   halfDay?: "morningLeave" | "eveningLeave";
+  /** The shift the day was worked on. */
+  shift: ShiftName;
+  /** The part of the day that counts (half days leave out the vacation part). */
+  window?: { start: Minutes; end: Minutes };
   /** Minutes actually worked inside the allowed window, minus time outside. */
   worked: number;
   lateness: number;
@@ -125,20 +88,33 @@ export interface Summary {
 }
 
 /** Past normal or half day whose punches look wrong, or undefined when they look fine. */
-function findPunchProblem(day: RawDay, rules: Rules): PunchProblem | undefined {
+function findPunchProblem(day: RawDay, settings: Settings): PunchProblem | undefined {
   const { clockIn, clockOut } = day;
   if (clockIn === null && clockOut !== null) return "missingSignIn";
   if (clockIn !== null && clockOut === null) return "missingSignOut";
-  if (clockIn !== null && clockOut !== null && clockOut - clockIn < rules.singlePunchWithin) return "singlePunch";
+  if (clockIn !== null && clockOut !== null && clockOut - clockIn < settings.singlePunchWithin) return "singlePunch";
   if (day.unpairedPunch) return "unpairedPunch";
   return undefined;
 }
 
-function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Overrides): DayResult {
+function evaluateDay(pageDay: RawDay, today: string, settings: Settings, overrides: Overrides): DayResult {
   // Today is not over (the sign-out may be missing), so it is excluded unless the user chose a type.
   const todayDefault = pageDay.date === today && !(pageDay.date in overrides);
   const day = { ...pageDay, dayType: todayDefault ? "excluded" : (overrides[pageDay.date] ?? pageDay.dayType) };
-  const result: DayResult = { day, pageType: pageDay.dayType, status: "ok", worked: 0, lateness: 0, shortness: 0, outside: 0, extra: 0 };
+  const shiftName = shiftOf(pageDay, settings);
+  const shift = settings[shiftName];
+  const windows = shiftWindows(shift);
+  const result: DayResult = {
+    day,
+    pageType: pageDay.dayType,
+    shift: shiftName,
+    status: "ok",
+    worked: 0,
+    lateness: 0,
+    shortness: 0,
+    outside: 0,
+    extra: 0,
+  };
   if (todayDefault) result.todayDefault = true;
 
   if (EXCLUDED_TYPES.includes(day.dayType) || (day.dayType === "unknown" && day.clockIn === null)) {
@@ -150,7 +126,7 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
     return result;
   }
   // Only normal and half days get here. Today still has time to sign out, so it is never flagged.
-  if (day.date < today) result.punchProblem = findPunchProblem(day, rules);
+  if (day.date < today) result.punchProblem = findPunchProblem(day, settings);
 
   const { clockIn, clockOut } = day;
   // Any missing sign-in or sign-out makes the day absent.
@@ -161,24 +137,20 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
   }
 
   const isHalfDay = HALF_DAY_TYPES.includes(day.dayType);
-  // Normal day: work counts 7:00–18:00. Half days leave out the vacation part:
-  // morning leave counts 11:00–18:00, evening leave counts 7:00–13:00.
-  let dayStart = rules.entryFrom;
-  let dayEnd = rules.dayEnd;
-  let entryTo = rules.entryTo;
-  let required = rules.dailyRequired;
+  // Normal day: work counts from the earliest entry until make-up ends (regular: 7:00–18:00).
+  // Half days leave out the vacation part (regular: morning leave 11:00–18:00, evening leave 7:00–13:00).
+  let dayStart = shift.entryFrom;
+  let dayEnd = shift.makeupUntil;
+  let entryTo = shift.entryTo;
+  let required = shift.hours;
   if (isHalfDay) {
-    required = rules.halfDayRequired;
+    required = windows.half;
     const morningLeave =
-      day.dayType === "halfDayMorning" || (day.dayType === "halfDayLeave" && clockIn >= rules.halfDayDetectAt);
+      day.dayType === "halfDayMorning" || (day.dayType === "halfDayLeave" && clockIn >= windows.detectMorningLeaveAt);
     result.halfDay = morningLeave ? "morningLeave" : "eveningLeave";
-    if (morningLeave) {
-      dayStart = rules.halfDayMorningStart;
-      entryTo = rules.halfDayMorningEntryTo;
-    } else {
-      dayEnd = rules.halfDayEveningEnd;
-    }
+    ({ start: dayStart, entryTo, end: dayEnd } = morningLeave ? windows.morningLeave : windows.eveningLeave);
   }
+  result.window = { start: dayStart, end: dayEnd };
 
   const outside =
     day.reported?.outside ??
@@ -192,7 +164,7 @@ function evaluateDay(pageDay: RawDay, today: string, rules: Rules, overrides: Ov
   result.outside = outside;
   result.worked = Math.max(0, effectiveOut - effectiveIn - outside);
 
-  if (!isHalfDay && result.worked < rules.minimumWorked) {
+  if (!isHalfDay && result.worked < windows.minimumWorked) {
     result.status = "absent";
     result.absentReason = "underMinimum";
     return result;
@@ -221,9 +193,9 @@ export function calculate(
   days: RawDay[],
   today: string,
   overrides: Overrides = {},
-  rules: Rules = DEFAULT_RULES,
+  settings: Settings = DEFAULT_SETTINGS,
 ): Summary {
-  const results = days.map((d) => evaluateDay(d, today, rules, overrides));
+  const results = days.map((d) => evaluateDay(d, today, settings, overrides));
   const counted = results.filter((r) => r.status === "ok");
   const sum = (key: "lateness" | "shortness" | "outside" | "extra") =>
     counted.reduce((acc, r) => acc + r[key], 0);
@@ -232,7 +204,7 @@ export function calculate(
   const coverable = totals.shortness + totals.outside;
   const extraUsed = Math.min(totals.extra, coverable);
   const charged = totals.lateness + (coverable - extraUsed);
-  const latenessOver = Math.max(0, totals.lateness - rules.monthlyAllowance);
+  const latenessOver = Math.max(0, totals.lateness - settings.monthlyAllowance);
   const notMadeUp = coverable - extraUsed;
 
   return {
@@ -242,9 +214,9 @@ export function calculate(
     extraUsed,
     extraLeft: totals.extra - extraUsed,
     charged,
-    remaining: rules.monthlyAllowance - charged,
+    remaining: settings.monthlyAllowance - charged,
     absentDays: results.filter((r) => r.status === "absent").length,
-    justification: { total: Math.max(0, charged - rules.monthlyAllowance), latenessOver, notMadeUp },
+    justification: { total: Math.max(0, charged - settings.monthlyAllowance), latenessOver, notMadeUp },
     problemDays: results.filter((r) => r.punchProblem).length,
   };
 }

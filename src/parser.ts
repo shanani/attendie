@@ -160,6 +160,7 @@ export function parseAttendancePage(root: ParentNode): ParseResult {
       clockIn,
       clockOut,
       reported: readReportedMinutes(row),
+      shiftName: textOf(cell("shiftType")),
       netMinutes: parseDuration(textOf(cell("netAttendanceHours"))),
       ...(punches.unpaired ? { unpairedPunch: true } : {}),
     });

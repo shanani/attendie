@@ -1,7 +1,9 @@
 import { calculate, type DayResult, type Summary } from "./calculator";
 import { attendanceWorkbook } from "./export";
+import { clock, halfDayNote, hm } from "./format";
 import { STRINGS } from "./i18n";
-import type { DayType, Lang, Minutes, Overrides, ParseResult } from "./types";
+import { loadSettings, type Settings } from "./settings";
+import type { DayType, Lang, Overrides, ParseResult } from "./types";
 
 const app = document.getElementById("app")!;
 
@@ -22,23 +24,13 @@ const SELECTABLE_TYPES: DayType[] = [
 /** State of the current summary, kept so a day-type change can recalculate without re-reading the page. */
 let parsed: ParseResult | null = null;
 let overrides: Overrides = {};
+let settings: Settings | null = null;
 let daysOpen = false;
 let breakdownOpen = false;
 
 function localToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/** 125 → "2:05", -5 → "-0:05". */
-function hm(minutes: number): string {
-  const sign = minutes < 0 ? "-" : "";
-  const abs = Math.abs(minutes);
-  return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
-}
-
-function clock(minutes: Minutes | null): string {
-  return minutes === null ? "–" : `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 function dash(minutes: number): string {
@@ -79,13 +71,21 @@ async function saveOverrides() {
   await chrome.storage.local.set({ overrides });
 }
 
+/** Title row with a link to the settings page. */
+function header(title: string, lang: Lang) {
+  const settingsLink = el("button", { className: "icon", title: STRINGS[lang].settings, textContent: "⚙" });
+  settingsLink.setAttribute("aria-label", STRINGS[lang].settings);
+  settingsLink.addEventListener("click", () => chrome.runtime.openOptionsPage());
+  return el("div", { className: "header" }, el("h1", { textContent: title }), settingsLink);
+}
+
 function renderStart(lang: Lang, error?: string) {
   setLang(lang);
   const t = STRINGS[lang];
   const button = el("button", { className: "primary", textContent: t.generate });
   button.addEventListener("click", () => generate(lang));
   app.replaceChildren(
-    el("h1", { textContent: t.title }),
+    header(t.title, lang),
     el("p", { className: "muted", textContent: t.intro }),
     button,
     ...(error ? [el("p", { className: "error", textContent: error })] : []),
@@ -168,8 +168,8 @@ function gateBlock(days: DayResult[], lang: Lang) {
   );
 }
 
-function downloadExcel(summary: Summary, lang: Lang) {
-  const blob = new Blob([attendanceWorkbook(summary, lang) as BlobPart], {
+function downloadExcel(summary: Summary, lang: Lang, settings: Settings) {
+  const blob = new Blob([attendanceWorkbook(summary, lang, settings) as BlobPart], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   const url = URL.createObjectURL(blob);
@@ -230,7 +230,8 @@ function daysTable(summary: Summary, lang: Lang) {
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
         const note = [
-          d.halfDay && t.halfDayPart[d.halfDay],
+          d.shift === "ramadan" && `🌙 ${t.shiftNames.ramadan}`,
+          halfDayNote(d, lang),
           absentReason(d, lang),
           d.todayDefault && t.excel.todayNote,
         ]
@@ -328,10 +329,10 @@ function renderSummary(summary: Summary, lang: Lang) {
   const again = el("button", { className: "secondary", textContent: t.generate });
   again.addEventListener("click", () => generate(lang));
   const exportButton = el("button", { className: "secondary", textContent: `⬇ ${t.exportExcel}` });
-  exportButton.addEventListener("click", () => downloadExcel(summary, lang));
+  exportButton.addEventListener("click", () => downloadExcel(summary, lang, settings!));
 
   app.replaceChildren(
-    el("h1", { textContent: `${t.title} · ${formatMonth(summary.month, lang)}` }),
+    header(`${t.title} · ${formatMonth(summary.month, lang)}`, lang),
     stats,
     justifyTile(summary, lang),
     usage,
@@ -344,7 +345,7 @@ function renderSummary(summary: Summary, lang: Lang) {
 
 function renderCurrent() {
   if (!parsed) return;
-  renderSummary(calculate(parsed.days, localToday(), overrides), parsed.lang);
+  renderSummary(calculate(parsed.days, localToday(), overrides, settings!), parsed.lang);
 }
 
 async function generate(fallbackLang: Lang) {
@@ -368,6 +369,7 @@ async function generate(fallbackLang: Lang) {
     }
     parsed = found;
     overrides = await loadOverrides();
+    settings = await loadSettings();
     renderCurrent();
   } catch {
     renderStart(fallbackLang, STRINGS[fallbackLang].cannotRun);

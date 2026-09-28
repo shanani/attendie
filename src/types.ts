@@ -40,6 +40,8 @@ export interface RawDay {
   clockOut: Minutes | null;
   /** Minutes HR lists in the day's expandable detail table; null if the table is missing. */
   reported: ReportedMinutes | null;
+  /** The page's "Shift Type" text, e.g. "Regular" (empty on weekends and leave days). */
+  shiftName?: string;
   /** The page's "Total Hours" column, in minutes. */
   netMinutes: number | null;
   /** The day's punch list (when loaded) has a sign-in without a sign-out, or the reverse. */

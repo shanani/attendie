@@ -37,9 +37,11 @@ describe("parser", () => {
     expect(ar.lang).toBe("ar");
     expect(en.days).toHaveLength(28);
     // The Arabic copy was saved with weekend punches on 4 Sep; every other day is identical.
-    const withoutPunches = (days: RawDay[]) =>
-      days.map((d) => (d.date === "2026-09-04" ? { ...d, clockIn: null, clockOut: null } : d));
-    expect(withoutPunches(ar.days)).toEqual(en.days);
+    // Shift names are in each page's language ("منتظم" / "Regular").
+    const comparable = (days: RawDay[]) =>
+      days.map(({ shiftName, ...d }) => (d.date === "2026-09-04" ? { ...d, clockIn: null, clockOut: null } : d));
+    expect(comparable(ar.days)).toEqual(comparable(en.days));
+    expect(ar.days[0].shiftName).toBe("منتظم");
   });
 
   it("reads day types, times and time outside", () => {
@@ -51,6 +53,7 @@ describe("parser", () => {
       clockIn: 7 * 60 + 32,
       clockOut: 17 * 60 + 22,
       reported: { lateness: 0, shortness: 0, outside: 101 },
+      shiftName: "Regular",
       netMinutes: 8 * 60 + 9,
     });
     expect(byDate("2026-09-04").dayType).toBe("weekend");

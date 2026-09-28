@@ -7,7 +7,7 @@ mkdirSync("dist", { recursive: true });
 cpSync("static", "dist", { recursive: true });
 
 const options = {
-  entryPoints: { content: "src/content.ts", popup: "src/popup.ts" },
+  entryPoints: { content: "src/content.ts", popup: "src/popup.ts", options: "src/options.ts" },
   bundle: true,
   format: "iife",
   target: "chrome110",
