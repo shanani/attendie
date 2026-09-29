@@ -265,7 +265,7 @@ function renderSummary(summary: Summary, lang: Lang) {
   setLang(lang);
   const t = STRINGS[lang];
   const { totals } = summary;
-  const allowance = summary.charged + summary.remaining;
+  const allowance = summary.allowance;
   const over = summary.remaining < 0;
 
   const fill = el("div", { className: "fill" });

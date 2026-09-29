@@ -73,7 +73,13 @@ export interface Summary {
   extraLeft: number;
   /** Minutes charged against the monthly allowance. */
   charged: number;
-  /** Allowance left; negative means over the allowance. */
+  /** The monthly allowance the balance starts from. */
+  allowance: number;
+  /**
+   * The real balance left for anything: allowance − lateness (lateness has priority), then plus
+   * leftover make-up or minus shortness/outside it did not cover. Leftover make-up never offsets
+   * lateness beyond the allowance. Negative means over.
+   */
   remaining: number;
   /** Number of absent days (not counted in the totals). */
   absentDays: number;
@@ -206,6 +212,11 @@ export function calculate(
   const charged = totals.lateness + (coverable - extraUsed);
   const latenessOver = Math.max(0, totals.lateness - settings.monthlyAllowance);
   const notMadeUp = coverable - extraUsed;
+  const afterLateness = settings.monthlyAllowance - totals.lateness;
+  const makeupBalance = totals.extra - coverable;
+  // Lateness is paid from the allowance first. Leftover make-up then adds to what is left, but cannot
+  // fill a gap left by lateness over the allowance; shortness/outside it did not cover comes off it.
+  const remaining = makeupBalance < 0 ? afterLateness + makeupBalance : afterLateness >= 0 ? afterLateness + makeupBalance : afterLateness;
 
   return {
     month: days[0]?.date.slice(0, 7) ?? "",
@@ -214,9 +225,10 @@ export function calculate(
     extraUsed,
     extraLeft: totals.extra - extraUsed,
     charged,
-    remaining: settings.monthlyAllowance - charged,
+    allowance: settings.monthlyAllowance,
+    remaining,
     absentDays: results.filter((r) => r.status === "absent").length,
-    justification: { total: Math.max(0, charged - settings.monthlyAllowance), latenessOver, notMadeUp },
+    justification: { total: Math.max(0, -remaining), latenessOver, notMadeUp },
     problemDays: results.filter((r) => r.punchProblem).length,
   };
 }

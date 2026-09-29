@@ -97,7 +97,7 @@ describe("calculator", () => {
     );
     expect(s.totals).toMatchObject({ extra: 60, shortness: 20 });
     expect(s.charged).toBe(0);
-    expect(s.remaining).toBe(480);
+    expect(s.remaining).toBe(520); // 40 min of make-up left over adds to the balance
   });
 
   it("ignores time before 7 AM and after 6 PM", () => {
@@ -345,21 +345,43 @@ describe("make-up is a monthly pool (user's September export)", () => {
   it("matches the exported numbers", () => {
     const s = run(halfDays);
     expect(s.totals).toEqual({ lateness: 402, shortness: 32, outside: 505, extra: 544 });
-    expect(s.remaining).toBe(78);
+    expect(s.remaining).toBe(85); // 480 − 402 lateness + 7 make-up left
     expect(s.extraLeft).toBe(7);
     const d28 = s.days.find((d) => d.day.date === "2026-09-28")!;
     expect(d28.extra - d28.shortness - d28.outside).toBe(-58);
   });
 
-  it("covers 28 Sep's 58 min from make-up left over on other days when 10 and 22 Sep are half days", () => {
+  it("takes 28 Sep's 58 min off the balance when 10 and 22 Sep are half days", () => {
     const withIt = run(halfDays).remaining;
     const withoutIt = run({ ...halfDays, "2026-09-28": "excluded" }).remaining;
-    expect(withIt).toBe(withoutIt); // 65 min of make-up were left over; 58 of them cover 28 Sep
+    expect([withoutIt, withIt]).toEqual([143, 85]); // 480 − 402 + 65 make-up left, then + 7
   });
 
-  it("charges 28 Sep's 58 min to the allowance when no make-up is left over", () => {
+  it("also takes 28 Sep's 58 min off the balance when no make-up is left over", () => {
     const withIt = run({}).remaining;
     const withoutIt = run({ "2026-09-28": "excluded" }).remaining;
     expect(withoutIt - withIt).toBe(58);
+  });
+});
+
+describe("remaining is one balance for everything", () => {
+  const day = (date: string, clockIn: string, clockOut: string) => regular(date, clockIn, clockOut);
+
+  it("pays lateness first, then adds left-over make-up", () => {
+    // 30 min late; 7:00–17:00 on another day earns 120 make-up with nothing to cover.
+    const s = calculate([day("2026-09-01", "9:30 AM", "5:00 PM"), day("2026-09-02", "7:00 AM", "5:00 PM")], "2026-09-30");
+    expect(s.remaining).toBe(480 - 30 + 120);
+  });
+
+  it("never lets left-over make-up offset lateness above the allowance", () => {
+    const late = Array.from({ length: 10 }, (_, i) => day(`2026-09-${String(i + 1).padStart(2, "0")}`, "10:00 AM", "5:00 PM")); // 600 late
+    const s = calculate([...late, day("2026-09-20", "7:00 AM", "5:00 PM")], "2026-09-30"); // +120 make-up
+    expect(s.remaining).toBe(-120);
+    expect(s.justification.total).toBe(120);
+  });
+
+  it("takes shortness/outside not made up off the balance", () => {
+    const s = calculate([day("2026-09-01", "9:30 AM", "5:00 PM"), day("2026-09-02", "8:00 AM", "3:00 PM")], "2026-09-30");
+    expect(s.remaining).toBe(480 - 30 - 60);
   });
 });

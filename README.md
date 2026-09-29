@@ -63,7 +63,7 @@ Defaults live in `src/settings.ts` (`DEFAULT_SETTINGS`); the calculation is in `
 - Lateness and shortness use HR's own per-day minutes from the day's detail whenever the page lists them (HR counts seconds and has a short grace period, so its numbers are exact); they are calculated from the times only when HR lists none, or when you changed the day's type.
 - Time after entry + 8h (up to 18:00) is **extra** (make-up). It stays within the month.
 - Extra covers shortness and outside time only, never lateness.
-- Whatever is left (lateness + uncovered shortness/outside) is charged to the **8h monthly allowance**.
+- **Remaining** is one balance for everything: allowance − lateness (lateness has priority), plus left-over make-up, or minus shortness/outside that make-up did not cover. So every short day lowers it. Left-over make-up never offsets lateness above the allowance.
 - **Absent** (not counted, shown in red with the total and the reason), on normal and half days only:
   - a missing sign-in or sign-out, or no sign-in/out at all;
   - under 4h of work on a normal day (half days have no 4-hour minimum).

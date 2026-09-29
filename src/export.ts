@@ -144,7 +144,7 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
     [x.sumShortOutside, "B4+B5", totals.shortness + totals.outside, x.howShortOutside],
     [t.extraUsed, "MIN(B6,B7)", summary.extraUsed, x.howExtraUsed],
     [t.charged, "B3+B7-B8", summary.charged, x.howCharged],
-    [t.statRemaining, "B2-B9", summary.remaining, x.howRemaining],
+    [t.statRemaining, "IF(AND(B2-B3>=0,B6-B7>0),B2-B3+B6-B7,B2-B9)", summary.remaining, x.howRemaining],
     [t.statLateShort, "B3+B7", totals.lateness + totals.shortness + totals.outside, x.howLateShort],
     [t.absentDays, `COUNTIF(${range("status")},"${t.status.absent}")`, summary.absentDays, x.howAbsent],
     [x.sumGateDays, `SUMPRODUCT(--(LEN(${range("gateCheck")})>0))`, summary.problemDays, x.howGate],

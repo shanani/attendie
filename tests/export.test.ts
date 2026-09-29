@@ -28,7 +28,7 @@ describe("Excel export", () => {
     expect(days.rows).toHaveLength(s.days.length + 1);
 
     const line = (label: string) => summary.rows.find((r) => r[0]?.value === label)!;
-    expect(line("Remaining this month")[1]).toMatchObject({ formula: "B2-B9", value: s.remaining });
+    expect(line("Remaining this month")[1]).toMatchObject({ formula: "IF(AND(B2-B3>=0,B6-B7>0),B2-B3+B6-B7,B2-B9)", value: s.remaining });
     expect(line("Lateness (after entry window)")[1].formula).toBe("SUMIFS('Days'!N2:N29,'Days'!E2:E29,1)");
     expect(line("Absent days")[1]).toMatchObject({ formula: `COUNTIF('Days'!F2:F29,"Absent")`, value: 1 });
     // Row 9 is "Charged to allowance", row 2 the allowance.
