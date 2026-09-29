@@ -223,7 +223,8 @@ function daysTable(summary: Summary, lang: Lang) {
           formatDate(d.day.date, lang),
           clock(d.day.clockIn),
           clock(d.day.clockOut),
-          counted || d.absentReason === "underMinimum" ? dash(d.worked) : "–",
+          // The page's own Total Hours, so it matches HR (the calculation still stops counting at the make-up time).
+          counted || d.absentReason === "underMinimum" ? dash(d.day.netMinutes ?? d.worked) : "–",
           dash(d.lateness),
           dash(d.shortness),
           dash(d.outside),
