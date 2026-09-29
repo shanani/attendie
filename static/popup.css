@@ -26,7 +26,7 @@
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  width: 680px;
+  width: 740px;
   background: var(--bg);
   color: var(--fg);
   font: 13px/1.45 system-ui, "Segoe UI", Tahoma, sans-serif;
@@ -81,6 +81,9 @@ table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-nu
 th, td { padding: 3px 4px; text-align: start; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 600; }
 tr.absent td { color: var(--danger); }
+td.net { font-weight: 600; direction: ltr; unicode-bidi: isolate; }
+td.net.pos { color: var(--accent); }
+td.net.neg { color: var(--danger); }
 tr.problem td { background: color-mix(in srgb, var(--warn) 16%, transparent); }
 tr.problem td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 .gate-block { border: 1px solid var(--warn); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; color: var(--warn-text); background: color-mix(in srgb, var(--warn) 12%, transparent); }

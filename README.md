@@ -32,7 +32,7 @@ Then load the `dist` folder as above.
 - **Absent days** in red: the total and each date with its reason.
 - **Days to check with the security gate report** in orange: a sign-in without a sign-out (or the reverse), one punch (in and out a few minutes apart), or an unpaired punch in the day's punch list.
 - **Today** is excluded by default because it is not over yet; to count it, change its type in the day table. Later days are not counted.
-- A day-by-day table.
+- A day-by-day table with a **Net** column per day: make-up − shortness − outside (e.g. −0:58 for a day with 108 min outside and 50 min make-up). Make-up is a monthly pool, so a negative day is first paid from other days' left-over make-up; only what is still missing is charged to the allowance.
 
 **Export to Excel** downloads the month as `attendance-YYYY-MM.xlsx` for checking by hand:
 

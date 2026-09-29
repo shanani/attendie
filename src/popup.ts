@@ -212,7 +212,7 @@ function daysTable(summary: Summary, lang: Lang) {
   return el(
     "table",
     {},
-    el("thead", {}, el("tr", {}, ...t.cols.map((c) => el("th", { textContent: c })))),
+    el("thead", {}, el("tr", {}, ...t.cols.map((c, i) => el("th", { textContent: c, title: i === 8 ? t.netHelp : "" })))),
     el(
       "tbody",
       {},
@@ -229,6 +229,14 @@ function daysTable(summary: Summary, lang: Lang) {
           dash(d.outside),
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
+        // The day's own make-up minus its shortness/outside, e.g. −0:58 for a day 108 min outside with 50 min make-up.
+        const net = d.extra - d.shortness - d.outside;
+        cells.push(
+          el("td", {
+            className: `net ${net < 0 ? "neg" : net > 0 ? "pos" : ""}`,
+            textContent: counted && (d.extra || d.shortness || d.outside) ? `${net > 0 ? "+" : net < 0 ? "−" : ""}${hm(Math.abs(net))}` : "–",
+          }),
+        );
         const note = [
           d.shift === "ramadan" && `🌙 ${t.shiftNames.ramadan}`,
           halfDayNote(d, lang),

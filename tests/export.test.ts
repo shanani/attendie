@@ -51,6 +51,8 @@ describe("Excel export", () => {
     expect(cell("2026-09-02", "Counted (1/0)").value).toBe(1);
     expect(cell("2026-09-02", "Outside (min)").value).toBe(101);
     expect(cell("2026-09-02", "Late/short from").value).toBe("HR page");
+    // Day balance: make-up 110 − outside 101, as a formula over the row.
+    expect(cell("2026-09-02", "Day balance (min)")).toMatchObject({ value: 9, formula: "IF(E3=1,Q3-O3-P3,\"\")" });
     // Today: excluded by default, with a note.
     expect(cell("2026-09-28", "Notes").value).toContain("Today: excluded by default");
   });

@@ -330,3 +330,36 @@ describe("needs justification", () => {
     expect(s.justification).toEqual({ total: 2, latenessOver: 0, notMadeUp: 97 });
   });
 });
+
+describe("make-up is a monthly pool (user's September export)", () => {
+  // The September sample as exported on 29 Sep: 28 Sep is 9:00–17:50 with 108 min outside.
+  const september = () =>
+    load("attendance-en.html").days.map((d) =>
+      d.date === "2026-09-28"
+        ? { ...d, clockIn: 9 * 60, clockOut: 17 * 60 + 50, netMinutes: 422, reported: { lateness: 0, shortness: 0, outside: 108 } }
+        : d,
+    );
+  const halfDays = { "2026-09-10": "halfDayLeave", "2026-09-22": "halfDayLeave" } as const;
+  const run = (overrides: Record<string, RawDay["dayType"]>) => calculate(september(), "2026-09-29", overrides);
+
+  it("matches the exported numbers", () => {
+    const s = run(halfDays);
+    expect(s.totals).toEqual({ lateness: 402, shortness: 32, outside: 505, extra: 544 });
+    expect(s.remaining).toBe(78);
+    expect(s.extraLeft).toBe(7);
+    const d28 = s.days.find((d) => d.day.date === "2026-09-28")!;
+    expect(d28.extra - d28.shortness - d28.outside).toBe(-58);
+  });
+
+  it("covers 28 Sep's 58 min from make-up left over on other days when 10 and 22 Sep are half days", () => {
+    const withIt = run(halfDays).remaining;
+    const withoutIt = run({ ...halfDays, "2026-09-28": "excluded" }).remaining;
+    expect(withIt).toBe(withoutIt); // 65 min of make-up were left over; 58 of them cover 28 Sep
+  });
+
+  it("charges 28 Sep's 58 min to the allowance when no make-up is left over", () => {
+    const withIt = run({}).remaining;
+    const withoutIt = run({ "2026-09-28": "excluded" }).remaining;
+    expect(withoutIt - withIt).toBe(58);
+  });
+});

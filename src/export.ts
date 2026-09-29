@@ -24,13 +24,14 @@ const DAY_COLUMNS = [
   "shortness",
   "outside",
   "extra",
+  "balance",
   "source",
 ] as const;
 type DayColumn = (typeof DAY_COLUMNS)[number];
 
 const WIDTHS: Record<DayColumn, number> = {
   date: 17, pageType: 16, typeUsed: 16, shift: 14, counted: 9, status: 11, gateCheck: 26, notes: 38, timeIn: 9, timeOut: 9,
-  span: 11, pageTotal: 11, worked: 10, lateness: 10, shortness: 10, outside: 10, extra: 10, source: 12,
+  span: 11, pageTotal: 11, worked: 10, lateness: 10, shortness: 10, outside: 10, extra: 10, balance: 12, source: 12,
 };
 
 const col = (key: DayColumn) => columnName(DAY_COLUMNS.indexOf(key));
@@ -83,6 +84,11 @@ function dayRow(d: DayResult, lang: Lang, rowNumber: number): Cell[] {
     shortness: minutes(d.shortness),
     outside: minutes(d.outside),
     extra: minutes(d.extra),
+    balance: {
+      value: counted ? d.extra - d.shortness - d.outside : "",
+      formula: `IF(${col("counted")}${rowNumber}=1,${col("extra")}${rowNumber}-${col("shortness")}${rowNumber}-${col("outside")}${rowNumber},"")`,
+      style: { ...base, numFmt: "int", bold: true },
+    },
     source: text(counted ? (d.day.reported && d.day.dayType === d.pageType ? x.sourceHr : x.sourceCalc) : ""),
   };
   return DAY_COLUMNS.map((key) => cells[key]);
@@ -145,6 +151,7 @@ function summarySheet(summary: Summary, lang: Lang, daysSheet: string, lastRow: 
     [x.sumLatenessOver, "MAX(0,B3-B2)", summary.justification.latenessOver, x.howLatenessOver],
     [x.sumNotMadeUp, "B7-B8", summary.justification.notMadeUp, x.howNotMadeUp],
     [t.justifyTitle, "MAX(0,B9-B2)", summary.justification.total, x.howJustify],
+    [x.sumBalance, sumCounted("balance"), totals.extra - totals.shortness - totals.outside, x.howBalance],
   ];
 
   const rows: Cell[][] = [
