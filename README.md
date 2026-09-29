@@ -39,6 +39,8 @@ Then load the `dist` folder as above.
 - **Summary** sheet: every total as a formula over the Days sheet, next to the extension's value and the difference (should be 0), plus the rules.
 - **Days** sheet: one row per day with real Excel dates and times, a `Counted (1/0)` column you can change to see the totals update, an `Out − In` formula column, the reason for any absence, and the same red (absent) / orange (check gate report) colours.
 
+In the day table you can also **change a day's sign-in/out** (click the time): correct a wrong punch, fill a missing one, or plan ahead, e.g. set today's sign-out to see the effect before you leave. Setting times on today or a later day counts that day. Edited days are calculated from your times (not HR's per-day minutes) and marked "times changed by you"; the gate-report flag still follows the page's real punches.
+
 In the day table you can change any day's type (for example mark a day as vacation, half-day leave, or **Excluded**). The popup recalculates right away. Your changes are saved in the extension, per date, and can be reset for the month.
 
 ## Settings (Ramadan)

@@ -3,7 +3,7 @@ import { attendanceWorkbook } from "./export";
 import { clock, halfDayNote, hm } from "./format";
 import { STRINGS } from "./i18n";
 import { loadSettings, type Settings } from "./settings";
-import type { DayType, Lang, Overrides, ParseResult } from "./types";
+import type { DayType, Lang, Minutes, Overrides, ParseResult, TimeEdits } from "./types";
 
 const app = document.getElementById("app")!;
 
@@ -24,6 +24,7 @@ const SELECTABLE_TYPES: DayType[] = [
 /** State of the current summary, kept so a day-type change can recalculate without re-reading the page. */
 let parsed: ParseResult | null = null;
 let overrides: Overrides = {};
+let timeEdits: TimeEdits = {};
 let settings: Settings | null = null;
 let daysOpen = false;
 let breakdownOpen = false;
@@ -69,6 +70,55 @@ async function loadOverrides(): Promise<Overrides> {
 
 async function saveOverrides() {
   await chrome.storage.local.set({ overrides });
+}
+
+async function loadTimeEdits(): Promise<TimeEdits> {
+  const stored = await chrome.storage.local.get("timeEdits");
+  return (stored.timeEdits as TimeEdits | undefined) ?? {};
+}
+
+async function saveTimeEdits() {
+  await chrome.storage.local.set({ timeEdits });
+}
+
+const toMinutes = (value: string): Minutes | null => {
+  if (!value) return null;
+  const [h, m] = value.split(":").map(Number);
+  return h * 60 + m;
+};
+
+/**
+ * Sign-in and sign-out as editable time fields. Changing either one (or filling a missing one)
+ * recalculates with the new times; setting them back to the page's times removes the edit.
+ */
+function timeInputs(d: DayResult, lang: Lang): [HTMLTableCellElement, HTMLTableCellElement] {
+  const t = STRINGS[lang];
+  // Weekends, vacations etc. with no punches have nothing to edit.
+  if (d.status === "excluded" && !d.todayDefault && !d.pageTimes && d.day.clockIn === null && d.day.clockOut === null) {
+    return [el("td", { textContent: "–" }), el("td", { textContent: "–" })];
+  }
+  const page = d.pageTimes ?? { clockIn: d.day.clockIn, clockOut: d.day.clockOut };
+  const make = (value: Minutes | null, pageValue: Minutes | null) => {
+    const input = el("input", { type: "time", className: "time", value: value === null ? "" : clock(value) });
+    const changed = d.pageTimes !== undefined && value !== pageValue;
+    if (changed) {
+      input.classList.add("edited");
+      input.title = t.pageTime.replace("{0}", clock(pageValue));
+    }
+    return input;
+  };
+  const inInput = make(d.day.clockIn, page.clockIn);
+  const outInput = make(d.day.clockOut, page.clockOut);
+  const save = async () => {
+    const next = { clockIn: toMinutes(inInput.value), clockOut: toMinutes(outInput.value) };
+    if (next.clockIn === page.clockIn && next.clockOut === page.clockOut) delete timeEdits[d.day.date];
+    else timeEdits[d.day.date] = next;
+    await saveTimeEdits();
+    renderCurrent();
+  };
+  inInput.addEventListener("change", save);
+  outInput.addEventListener("change", save);
+  return [el("td", {}, inInput), el("td", {}, outInput)];
 }
 
 /** Title row with a link to the settings page. */
@@ -221,8 +271,6 @@ function daysTable(summary: Summary, lang: Lang) {
         const counted = d.status === "ok";
         const cells = [
           formatDate(d.day.date, lang),
-          clock(d.day.clockIn),
-          clock(d.day.clockOut),
           // The page's own Total Hours, so it matches HR (the calculation still stops counting at the make-up time).
           counted || d.absentReason === "underMinimum" ? dash(d.day.netMinutes ?? d.worked) : "–",
           dash(d.lateness),
@@ -230,6 +278,7 @@ function daysTable(summary: Summary, lang: Lang) {
           dash(d.outside),
           dash(d.extra),
         ].map((v) => el("td", { textContent: v }));
+        cells.splice(1, 0, ...timeInputs(d, lang));
         // The day's own make-up minus its shortness/outside, e.g. −0:58 for a day 108 min outside with 50 min make-up.
         const net = d.extra - d.shortness - d.outside;
         cells.push(
@@ -243,6 +292,7 @@ function daysTable(summary: Summary, lang: Lang) {
           halfDayNote(d, lang),
           absentReason(d, lang),
           d.todayDefault && t.excel.todayNote,
+          d.pageTimes && t.timesEdited,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -326,11 +376,15 @@ function renderSummary(summary: Summary, lang: Lang) {
   breakdown.addEventListener("toggle", () => (breakdownOpen = breakdown.open));
 
   const monthDates = summary.days.map((d) => d.day.date);
-  const hasOverrides = monthDates.some((d) => d in overrides);
+  const hasOverrides = monthDates.some((d) => d in overrides || d in timeEdits);
   const reset = el("button", { className: "link", textContent: t.resetOverrides });
   reset.addEventListener("click", async () => {
-    for (const date of monthDates) delete overrides[date];
+    for (const date of monthDates) {
+      delete overrides[date];
+      delete timeEdits[date];
+    }
     await saveOverrides();
+    await saveTimeEdits();
     renderCurrent();
   });
 
@@ -362,7 +416,7 @@ function renderSummary(summary: Summary, lang: Lang) {
 
 function renderCurrent() {
   if (!parsed) return;
-  renderSummary(calculate(parsed.days, localToday(), overrides, settings!), parsed.lang);
+  renderSummary(calculate(parsed.days, localToday(), overrides, settings!, timeEdits), parsed.lang);
 }
 
 async function generate(fallbackLang: Lang) {
@@ -386,6 +440,7 @@ async function generate(fallbackLang: Lang) {
     }
     parsed = found;
     overrides = await loadOverrides();
+    timeEdits = await loadTimeEdits();
     settings = await loadSettings();
     renderCurrent();
   } catch {

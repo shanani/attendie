@@ -385,3 +385,40 @@ describe("remaining is one balance for everything", () => {
     expect(s.remaining).toBe(480 - 30 - 60);
   });
 });
+
+describe("times set by the user", () => {
+  const sep = () => load("attendance-en.html").days;
+  const find = (s: ReturnType<typeof calculate>, date: string) => s.days.find((d) => d.day.date === date)!;
+
+  it("replace the page's times and are calculated from them (not HR's minutes)", () => {
+    // 3 Sep on the page: 8:41–16:09, HR shortness 31. Say the real sign-out was 16:41.
+    const s = calculate(sep(), "2026-09-28", {}, undefined, { "2026-09-03": { clockIn: 8 * 60 + 41, clockOut: 16 * 60 + 41 } });
+    const d = find(s, "2026-09-03");
+    expect(d).toMatchObject({ status: "ok", shortness: 0, extra: 0, pageTimes: { clockIn: 521, clockOut: 969 } });
+    expect(d.day.clockOut).toBe(16 * 60 + 41);
+  });
+
+  it("fill a missing sign-out, while the gate-report flag stays on the page's punches", () => {
+    const days = sep().map((d) => (d.date === "2026-09-14" ? { ...d, clockOut: null } : d));
+    const before = find(calculate(days, "2026-09-28"), "2026-09-14");
+    expect(before).toMatchObject({ status: "absent", punchProblem: "missingSignOut" });
+    const after = find(calculate(days, "2026-09-28", {}, undefined, { "2026-09-14": { clockIn: 529, clockOut: 17 * 60 } }), "2026-09-14");
+    expect(after).toMatchObject({ status: "ok", punchProblem: "missingSignOut", extra: 11 });
+  });
+
+  it("count today when its times are set (planning ahead)", () => {
+    // Today 28 Sep: 9:00–9:01 on the page (not over). Plan: leave at 16:30 → 30 min short.
+    const plan = { "2026-09-28": { clockIn: 9 * 60, clockOut: 16 * 60 + 30 } };
+    const s = calculate(sep(), "2026-09-28", {}, undefined, plan);
+    expect(find(s, "2026-09-28")).toMatchObject({ status: "ok", shortness: 30 });
+    expect(find(s, "2026-09-28").todayDefault).toBeUndefined();
+    expect(calculate(sep(), "2026-09-28").remaining - s.remaining).toBe(30);
+  });
+
+  it("count a later day when its times are set", () => {
+    const later = { date: "2026-09-30", dayType: "regular" as const, clockIn: null, clockOut: null, reported: null, netMinutes: null, shiftName: "Regular" };
+    expect(find(calculate([later], "2026-09-28"), "2026-09-30").status).toBe("notCounted");
+    const planned = calculate([later], "2026-09-28", {}, undefined, { "2026-09-30": { clockIn: 8 * 60, clockOut: 17 * 60 } });
+    expect(find(planned, "2026-09-30")).toMatchObject({ status: "ok", extra: 60 });
+  });
+});

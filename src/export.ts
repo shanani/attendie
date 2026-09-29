@@ -56,6 +56,7 @@ function dayRow(d: DayResult, lang: Lang, rowNumber: number): Cell[] {
     d.todayDefault && x.todayNote,
     d.day.dayType !== d.pageType && !d.todayDefault && t.overridden.replace("{0}", t.dayTypes[d.pageType]),
     halfDayNote(d, lang),
+    d.pageTimes && `${t.timesEdited} (${t.pageTime.replace("{0}", `${clock(d.pageTimes.clockIn)}–${clock(d.pageTimes.clockOut)}`)})`,
     d.absentReason && t.absentReason[d.absentReason].replace("{0}", hm(d.worked)),
   ].filter(Boolean) as string[];
 

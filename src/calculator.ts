@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, resolveShifts, type Settings, type ShiftName, shiftWindows } from "./settings";
-import type { DayType, Minutes, Overrides, RawDay } from "./types";
+import type { DayType, Minutes, Overrides, RawDay, TimeEdits } from "./types";
 
 export { DEFAULT_SETTINGS } from "./settings";
 const HALF_DAY_TYPES: DayType[] = ["halfDayLeave", "halfDayMorning", "halfDayEvening"];
@@ -48,6 +48,8 @@ export interface DayResult {
   punchProblem?: PunchProblem;
   /** Today, excluded by default because it is not over yet; the user can change its type to count it. */
   todayDefault?: boolean;
+  /** The sign-in/out the user set, replacing the page's; the page's own times stay in `pageTimes`. */
+  pageTimes?: { clockIn: Minutes | null; clockOut: Minutes | null };
   /** Which part of a half day was the leave (chosen by the user, or detected from the arrival time). */
   halfDay?: "morningLeave" | "eveningLeave";
   /** The shift the day was worked on. */
@@ -103,10 +105,23 @@ function findPunchProblem(day: RawDay, settings: Settings): PunchProblem | undef
   return undefined;
 }
 
-function evaluateDay(pageDay: RawDay, shiftName: ShiftName, today: string, settings: Settings, overrides: Overrides): DayResult {
-  // Today is not over (the sign-out may be missing), so it is excluded unless the user chose a type.
-  const todayDefault = pageDay.date === today && !(pageDay.date in overrides);
-  const day = { ...pageDay, dayType: todayDefault ? "excluded" : (overrides[pageDay.date] ?? pageDay.dayType) };
+function evaluateDay(
+  pageDay: RawDay,
+  shiftName: ShiftName,
+  today: string,
+  settings: Settings,
+  overrides: Overrides,
+  timeEdits: TimeEdits,
+): DayResult {
+  // Times the user set replace the page's; HR's per-day minutes and total hours no longer apply to them.
+  const edit = timeEdits[pageDay.date];
+  // Today is not over (the sign-out may be missing), so it is excluded unless the user chose a type or set its times.
+  const todayDefault = pageDay.date === today && !(pageDay.date in overrides) && !edit;
+  const day: RawDay = {
+    ...pageDay,
+    ...(edit ? { clockIn: edit.clockIn, clockOut: edit.clockOut, netMinutes: null, unpairedPunch: undefined } : {}),
+    dayType: todayDefault ? "excluded" : (overrides[pageDay.date] ?? pageDay.dayType),
+  };
   const shift = settings[shiftName];
   const windows = shiftWindows(shift);
   const result: DayResult = {
@@ -121,17 +136,20 @@ function evaluateDay(pageDay: RawDay, shiftName: ShiftName, today: string, setti
     extra: 0,
   };
   if (todayDefault) result.todayDefault = true;
+  if (edit) result.pageTimes = { clockIn: pageDay.clockIn, clockOut: pageDay.clockOut };
 
   if (EXCLUDED_TYPES.includes(day.dayType) || (day.dayType === "unknown" && day.clockIn === null)) {
     result.status = "excluded";
     return result;
   }
-  if (day.date > today) {
+  // A later day is counted only when the user set its times (planning ahead).
+  if (day.date > today && !edit) {
     result.status = "notCounted";
     return result;
   }
   // Only normal and half days get here. Today still has time to sign out, so it is never flagged.
-  if (day.date < today) result.punchProblem = findPunchProblem(day, settings);
+  // The flag follows the page's real punches, even when the user corrected them here.
+  if (day.date < today) result.punchProblem = findPunchProblem({ ...day, clockIn: pageDay.clockIn, clockOut: pageDay.clockOut, unpairedPunch: pageDay.unpairedPunch }, settings);
 
   const { clockIn, clockOut } = day;
   // Any missing sign-in or sign-out makes the day absent.
@@ -178,7 +196,7 @@ function evaluateDay(pageDay: RawDay, shiftName: ShiftName, today: string, setti
   // Prefer HR's own per-day minutes when the page lists them: HR counts seconds (the page shows
   // only minutes) and applies a grace period, so its numbers are exact. They were worked out for
   // the page's day type, so a day the user re-typed is calculated instead.
-  const hr = day.dayType === pageDay.dayType ? day.reported : null;
+  const hr = day.dayType === pageDay.dayType && !edit ? day.reported : null;
   result.lateness = hr?.lateness ?? Math.max(0, clockIn - entryTo);
   result.shortness = hr?.shortness ?? Math.max(0, expectedOut - clockOut);
   result.extra = Math.max(0, effectiveOut - expectedOut);
@@ -199,9 +217,10 @@ export function calculate(
   today: string,
   overrides: Overrides = {},
   settings: Settings = DEFAULT_SETTINGS,
+  timeEdits: TimeEdits = {},
 ): Summary {
   const shifts = resolveShifts(days, settings);
-  const results = days.map((d, i) => evaluateDay(d, shifts[i], today, settings, overrides));
+  const results = days.map((d, i) => evaluateDay(d, shifts[i], today, settings, overrides, timeEdits));
   const counted = results.filter((r) => r.status === "ok");
   const sum = (key: "lateness" | "shortness" | "outside" | "extra") =>
     counted.reduce((acc, r) => acc + r[key], 0);

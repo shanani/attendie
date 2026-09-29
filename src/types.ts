@@ -23,6 +23,9 @@ export type DayType =
 /** Day types the user chose per date, overriding what the page shows. */
 export type Overrides = Record<string, DayType>;
 
+/** Sign-in/out times the user set per date (to correct them, fill a missing one, or plan ahead). */
+export type TimeEdits = Record<string, { clockIn: Minutes | null; clockOut: Minutes | null }>;
+
 export interface ReportedMinutes {
   lateness: number;
   /** Shortness, including half-day shortness. */
