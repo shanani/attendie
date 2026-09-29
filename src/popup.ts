@@ -92,13 +92,13 @@ function renderStart(lang: Lang, error?: string) {
   );
 }
 
-function stat(label: string, minutes: number, lang: Lang, className = "") {
+function stat(label: string, minutes: number, lang: Lang, className = "", sub = hm(minutes)) {
   return el(
     "div",
     { className: `stat ${className}` },
     el("div", { className: "label", textContent: label }),
     el("div", { className: "value" }, el("strong", { textContent: String(minutes) }), ` ${STRINGS[lang].min}`),
-    el("div", { className: "sub", textContent: hm(minutes) }),
+    el("div", { className: "sub", textContent: sub }),
   );
 }
 
@@ -275,7 +275,15 @@ function renderSummary(summary: Summary, lang: Lang) {
     "section",
     { className: "stats" },
     stat(t.statRemaining, summary.remaining, lang, `hero ${over ? "over" : ""}`),
-    stat(t.statMakeup, totals.extra, lang),
+    // The month's make-up pool after every day's shortness/outside is deducted (e.g. a 7-hour day with
+    // 108 min outside and 50 min make-up takes 58 off it). Negative means the allowance is being used.
+    stat(
+      t.statMakeupBalance,
+      totals.extra - totals.shortness - totals.outside,
+      lang,
+      `makeup ${totals.extra - totals.shortness - totals.outside < 0 ? "neg" : ""}`,
+      t.makeupBalanceSub.replace("{0}", String(totals.extra)).replace("{1}", String(totals.shortness + totals.outside)),
+    ),
     stat(t.statLateness, totals.lateness, lang),
     stat(t.statLateShort, totals.lateness + totals.shortness + totals.outside, lang),
   );

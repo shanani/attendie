@@ -25,7 +25,7 @@ Then load the `dist` folder as above.
 ## What the popup shows
 
 - **Remaining this month**: allowance minutes left (negative means you are over).
-- **Total make-up time**: extra minutes earned (after the 8h day, up to 6 PM).
+- **Make-up balance**: the month's make-up pool after deducting every day's shortness and outside time (earned − shortness − outside). A short day lowers it; negative means the allowance is being used.
 - **Total lateness**: minutes arriving after 9:00.
 - **Lateness + shortness/outside**: all missing time before any make-up is applied.
 - **Needs justification**: the minutes past the 8-hour allowance. With lateness over 8 hours that is (lateness − 8h) + shortness/outside not covered by make-up (leftover make-up never reduces the lateness part); otherwise it is lateness + uncovered shortness/outside − 8h. Green at 0.

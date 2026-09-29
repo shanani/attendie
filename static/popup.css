@@ -57,6 +57,7 @@ button.link { width: auto; border: none; background: none; color: var(--accent);
 .stat .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .stat.hero .value strong { color: var(--accent); }
 .stat.hero.over .value strong { color: var(--danger); }
+.stat.makeup.neg .value strong { color: var(--danger); }
 .justify { border-top: none; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
 .justify .row strong { font-size: 20px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
 .justify.ok { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border: 1px solid var(--accent); }
